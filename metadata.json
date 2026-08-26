@@ -1,0 +1,11 @@
+{
+  "name": "FleetMoto - Gestão e Logística Eleitoral",
+  "description": "Plataforma de gestão e rastreamento de entregas de materiais de campanha eleitoral por motoboys com controle de estoque físico e reservas, expedição, rotas, comitês, prestação de contas TSE e comprovação de entrega (POD).",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,234 @@
+{
+  "entities": {
+    "Pedido": {
+      "title": "Pedido",
+      "description": "Pedidos de materiais de campanha eleitoral",
+      "type": "object",
+      "properties": {
+        "numeroPedido": { "type": "string" },
+        "clienteId": { "type": "string" },
+        "clienteNome": { "type": "string" },
+        "candidato": { "type": "string" },
+        "status": { "type": "string" },
+        "quantidadeTotal": { "type": "number" },
+        "dataPedido": { "type": "string" }
+      },
+      "required": ["numeroPedido", "clienteId", "status"]
+    },
+    "Expedicao": {
+      "title": "Expedicao",
+      "description": "Processo de separação, conferência, divergências e liberação de pedidos para transporte",
+      "type": "object",
+      "properties": {
+        "pedidoId": { "type": "string" },
+        "numeroPedido": { "type": "string" },
+        "clienteId": { "type": "string" },
+        "clienteNome": { "type": "string" },
+        "candidato": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": [
+            "aguardando_separacao",
+            "em_separacao",
+            "aguardando_conferencia",
+            "com_divergencia",
+            "pronto_expedicao",
+            "liberado_entrega",
+            "em_rota",
+            "finalizado"
+          ]
+        },
+        "quantidadeTotalItens": { "type": "number" },
+        "pesoTotalKg": { "type": "number" },
+        "volumeTotal": { "type": "number" }
+      },
+      "required": ["pedidoId", "numeroPedido", "status"]
+    },
+    "Divergencia": {
+      "title": "Divergencia",
+      "description": "Registro de divergências e avarias de materiais durante a expedição",
+      "type": "object",
+      "properties": {
+        "pedidoId": { "type": "string" },
+        "numeroPedido": { "type": "string" },
+        "tipo": { "type": "string" },
+        "quantidadeAfetada": { "type": "number" },
+        "status": { "type": "string", "enum": ["aberta", "resolvida", "cancelada"] }
+      },
+      "required": ["pedidoId", "tipo", "status"]
+    },
+    "RotaExpedicao": {
+      "title": "RotaExpedicao",
+      "description": "Rotas e saídas de expedição para frotas e motoboys",
+      "type": "object",
+      "properties": {
+        "codigoRota": { "type": "string" },
+        "nome": { "type": "string" },
+        "motoboyId": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["codigoRota", "status"]
+    },
+    "Entrega": {
+      "title": "Entrega",
+      "description": "Entregas e rotas atribuídas",
+      "type": "object",
+      "properties": {
+        "codigoRastreio": { "type": "string" },
+        "comiteId": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["codigoRastreio", "status"]
+    },
+    "Usuario": {
+      "title": "Usuario",
+      "description": "Perfis de usuários e acessos ao sistema",
+      "type": "object",
+      "properties": {
+        "nome": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["nome", "email"]
+    },
+    "LogAuditoria": {
+      "title": "LogAuditoria",
+      "description": "Logs imutáveis de auditoria e conformidade eleitoral",
+      "type": "object",
+      "properties": {
+        "acao": { "type": "string" },
+        "colecao": { "type": "string" },
+        "documentoId": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["acao", "colecao", "timestamp"]
+    },
+    "Material": {
+      "title": "Material",
+      "description": "Cadastro de materiais e insumos do estoque eleitoral",
+      "type": "object",
+      "properties": {
+        "sku": { "type": "string" },
+        "nome": { "type": "string" },
+        "categoria": { "type": "string" },
+        "tipoMaterial": { "type": "string" },
+        "unidadeMedida": { "type": "string" },
+        "estoqueMinimo": { "type": "number" },
+        "estoqueMaximo": { "type": "number" },
+        "custoUnitario": { "type": "number" },
+        "localizacao": { "type": "string" },
+        "status": { "type": "string", "enum": ["ativo", "inativo", "bloqueado"] }
+      },
+      "required": ["sku", "nome", "categoria", "tipoMaterial", "unidadeMedida", "status"]
+    },
+    "EstoqueSaldo": {
+      "title": "EstoqueSaldo",
+      "description": "Saldos operacionais de estoque por material (físico, disponível, reservado, em separação, etc.)",
+      "type": "object",
+      "properties": {
+        "materialId": { "type": "string" },
+        "estoqueFisico": { "type": "number" },
+        "disponivel": { "type": "number" },
+        "reservado": { "type": "number" },
+        "emSeparacao": { "type": "number" },
+        "liberado": { "type": "number" },
+        "avariado": { "type": "number" },
+        "bloqueado": { "type": "number" }
+      },
+      "required": ["materialId", "estoqueFisico", "disponivel"]
+    },
+    "EstoqueMovimentacao": {
+      "title": "EstoqueMovimentacao",
+      "description": "Histórico imutável de entradas, saídas, transferências, avarias e estornos",
+      "type": "object",
+      "properties": {
+        "materialId": { "type": "string" },
+        "tipo": { "type": "string", "enum": ["entrada", "saida", "transferencia", "avaria", "estorno", "ajuste_inventario"] },
+        "subtipo": { "type": "string" },
+        "quantidade": { "type": "number" },
+        "saldoAnterior": { "type": "number" },
+        "saldoPosterior": { "type": "number" },
+        "motivo": { "type": "string" },
+        "usuarioId": { "type": "string" },
+        "usuarioNome": { "type": "string" }
+      },
+      "required": ["materialId", "tipo", "quantidade", "saldoAnterior", "saldoPosterior", "usuarioId"]
+    },
+    "EstoqueReserva": {
+      "title": "EstoqueReserva",
+      "description": "Reservas de materiais vinculadas a pedidos",
+      "type": "object",
+      "properties": {
+        "pedidoId": { "type": "string" },
+        "materialId": { "type": "string" },
+        "quantidadeReservada": { "type": "number" },
+        "status": { "type": "string", "enum": ["pendente", "reservado", "reserva_parcial", "sem_estoque", "liberado_separacao", "consumido", "cancelado"] }
+      },
+      "required": ["pedidoId", "materialId", "quantidadeReservada", "status"]
+    },
+    "Inventario": {
+      "title": "Inventario",
+      "description": "Processos de contagem física, conferência e ajustes de inventário",
+      "type": "object",
+      "properties": {
+        "codigo": { "type": "string" },
+        "titulo": { "type": "string" },
+        "tipo": { "type": "string", "enum": ["geral", "categoria", "localizacao", "amostragem"] },
+        "status": { "type": "string", "enum": ["planejado", "em_contagem", "aguardando_conferencia", "aguardando_aprovacao", "finalizado", "cancelado"] },
+        "dataAbertura": { "type": "string" }
+      },
+      "required": ["codigo", "titulo", "tipo", "status", "dataAbertura"]
+    }
+  },
+  "firestore": {
+    "/materiais/{materialId}": {
+      "schema": "Material",
+      "description": "Coleção de materiais cadastrados no estoque"
+    },
+    "/estoque_saldos/{materialId}": {
+      "schema": "EstoqueSaldo",
+      "description": "Saldos e posições de estoque em tempo real"
+    },
+    "/estoque_movimentacoes/{movimentacaoId}": {
+      "schema": "EstoqueMovimentacao",
+      "description": "Histórico imutável de movimentações de estoque"
+    },
+    "/estoque_reservas/{reservaId}": {
+      "schema": "EstoqueReserva",
+      "description": "Reservas de materiais para pedidos"
+    },
+    "/inventarios/{inventarioId}": {
+      "schema": "Inventario",
+      "description": "Registros e contagens de inventário de estoque"
+    },
+    "/pedidos/{pedidoId}": {
+      "schema": "Pedido",
+      "description": "Coleção de pedidos de campanha"
+    },
+    "/expedicoes/{expedicaoId}": {
+      "schema": "Expedicao",
+      "description": "Coleção de processos de separação e expedição"
+    },
+    "/divergencias/{divergenciaId}": {
+      "schema": "Divergencia",
+      "description": "Coleção de divergências registradas na expedição"
+    },
+    "/rotas_expedicao/{rotaId}": {
+      "schema": "RotaExpedicao",
+      "description": "Rotas e saídas de despacho da expedição"
+    },
+    "/entregas/{entregaId}": {
+      "schema": "Entrega",
+      "description": "Coleção de entregas em campo"
+    },
+    "/usuarios/{userId}": {
+      "schema": "Usuario",
+      "description": "Perfis de usuários"
+    },
+    "/logs_auditoria/{logId}": {
+      "schema": "LogAuditoria",
+      "description": "Logs de auditoria e rastreabilidade operacional"
+    }
+  }
+}
