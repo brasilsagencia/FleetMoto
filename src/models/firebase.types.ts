@@ -2,6 +2,7 @@ import {
   StatusComite, 
   CargoEleitoral, 
   OrigemCliente, 
+  RegiaoRota,
   StatusMotoboy, 
   TipoFrota, 
   StatusAdesivagem, 
@@ -74,6 +75,7 @@ export interface ClienteDoc extends BaseEntity {
   cidade: string;
   uf: string;
   cep: string;
+  regiaoRota?: RegiaoRota;
   zonaEleitoral?: string;
   secoesAtendidas?: string;
   valorBaseRota?: number;
@@ -200,6 +202,7 @@ export interface EntregaDoc extends BaseEntity {
   comprovantePOD?: ComprovantePOD;
   observacoes?: string;
   rotaId?: string;
+  expedicaoId?: string;
 }
 
 export interface RotaDoc extends BaseEntity {
@@ -503,5 +506,28 @@ export interface InventarioDoc extends BaseEntity {
   dataAbertura: string;
   dataFinalizacao?: string;
   observacoes?: string;
+}
+
+export interface RelatorioModeloDoc extends BaseEntity {
+  nome: string;
+  descricao?: string;
+  tipoModelo: string;
+  filtros: Record<string, any>;
+  colunasVisiveis: string[];
+  criadoPorId: string;
+  criadoPorNome: string;
+}
+
+export interface RelatorioHistoricoDoc extends BaseEntity {
+  titulo: string;
+  tipoModelo: string;
+  formato: 'pdf' | 'excel' | 'csv' | 'impressao' | 'compartilhamento';
+  filtrosAplicados: Record<string, any>;
+  totalRegistros: number;
+  usuarioId: string;
+  usuarioNome: string;
+  usuarioPapel?: string;
+  ipOuDispositivo?: string;
+  identificadorUnico: string;
 }
 

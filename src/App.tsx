@@ -11,10 +11,16 @@ import {
   Usuario,
   ConfiguracaoGeral,
   StatusEntrega,
+  Material,
+  EstoqueSaldo,
+  EstoqueMovimentacao,
+  ComprovantePOD,
 } from './types';
+import { offlineSyncService } from './services/offlineSync';
 import { Sidebar, TabType } from './components/Sidebar';
 import { Header } from './components/Header';
 import { ComitesView } from './components/ComitesView';
+import { RotasClienteView } from './components/rotas-cliente/RotasClienteView';
 import { PedidosView } from './components/PedidosView';
 import { EstoqueView } from './components/EstoqueView';
 import { ExpedicaoView } from './components/ExpedicaoView';
@@ -46,10 +52,15 @@ import {
   usuariosRepo,
   configuracoesRepo,
   logsAuditoriaRepo,
+  materiaisRepo,
+  estoqueSaldosRepo,
+  estoqueMovimentacoesRepo,
+  expedicoesRepo,
+  rotasExpedicaoRepo,
   StorageService
 } from './repositories';
 import { seedInitialFirebaseData } from './services/firebase/seed';
-import { LogAuditoriaDoc } from './models/firebase.types';
+import { LogAuditoriaDoc, ExpedicaoDoc, RotaExpedicaoDoc } from './models/firebase.types';
 import { Wifi, WifiOff, CloudCheck, RefreshCw, AlertCircle, LogIn, LogOut, Shield } from 'lucide-react';
 
 function MainAppContent() {
@@ -72,6 +83,11 @@ function MainAppContent() {
   const [financeiro, setFinanceiro] = useState<TransacaoFinanceira[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [logsAuditoria, setLogsAuditoria] = useState<LogAuditoriaDoc[]>([]);
+  const [materiais, setMateriais] = useState<Material[]>([]);
+  const [estoqueSaldos, setEstoqueSaldos] = useState<Record<string, EstoqueSaldo>>({});
+  const [estoqueMovimentacoes, setEstoqueMovimentacoes] = useState<EstoqueMovimentacao[]>([]);
+  const [expedicoes, setExpedicoes] = useState<ExpedicaoDoc[]>([]);
+  const [rotasExpedicao, setRotasExpedicao] = useState<RotaExpedicaoDoc[]>([]);
   const [config, setConfig] = useState<ConfiguracaoGeral>({
     taxaBaseKm: 2.8,
     taxaMinimaRota: 25.0,
@@ -182,7 +198,46 @@ function MainAppContent() {
           })
         );
 
-        // 10. Configuracoes
+        // 10. Materiais de Estoque
+        unsubs.push(
+          materiaisRepo.subscribe((data) => {
+            setMateriais(data);
+          })
+        );
+
+        // 11. Saldos de Estoque
+        unsubs.push(
+          estoqueSaldosRepo.subscribe((data) => {
+            const sMap: Record<string, EstoqueSaldo> = {};
+            data.forEach((s) => {
+              sMap[s.materialId] = s;
+            });
+            setEstoqueSaldos(sMap);
+          })
+        );
+
+        // 12. Movimentações de Estoque
+        unsubs.push(
+          estoqueMovimentacoesRepo.subscribe((data) => {
+            setEstoqueMovimentacoes(data);
+          })
+        );
+
+        // 13. Expedições
+        unsubs.push(
+          expedicoesRepo.subscribe((data) => {
+            setExpedicoes(data);
+          })
+        );
+
+        // 14. Rotas de Expedição
+        unsubs.push(
+          rotasExpedicaoRepo.subscribe((data) => {
+            setRotasExpedicao(data);
+          })
+        );
+
+        // 15. Configuracoes
         const configDoc = await configuracoesRepo.getById('geral');
         if (configDoc) {
           setConfig({
@@ -367,26 +422,42 @@ function MainAppContent() {
     }
   };
 
+  // Sincronização automática da fila offline quando a rede voltar ou ao carregar o app
+  useEffect(() => {
+    const handleSyncOfflineQueue = async () => {
+      if (offlineSyncService.isOnline()) {
+        const result = await offlineSyncService.processQueue(async (entregaId, podData, userId) => {
+          await entregasRepo.concluirEntregaComPOD(entregaId, podData, userId || activeUser?.id);
+        });
+        if (result.synced > 0) {
+          console.log(`[OfflineSync] ${result.synced} comprovações sincronizadas com sucesso no Firebase!`);
+        }
+      }
+    };
+
+    handleSyncOfflineQueue();
+    window.addEventListener('online', handleSyncOfflineQueue);
+    return () => {
+      window.removeEventListener('online', handleSyncOfflineQueue);
+    };
+  }, [activeUser?.id]);
+
   // Handler: Complete Delivery (POD) via Firestore Transaction
   const handleCompleteDeliveryWithPOD = async (
     entregaId: string,
-    podData: {
-      fotoUrl: string;
-      assinaturaBase64: string;
-      nomeRecebedor: string;
-      documentoRecebedor: string;
-      telefoneRecebedor?: string;
-      dataHora: string;
-      localizacaoGps: string;
-      notas?: string;
-    }
+    podData: ComprovantePOD
   ) => {
     setSyncStatus('salvando');
     try {
       await entregasRepo.concluirEntregaComPOD(entregaId, podData, activeUser.id);
-      alert('Comprovante de Entrega (POD) gravado com sucesso no Firebase!');
     } catch (err: any) {
-      alert(`Erro ao concluir entrega: ${err.message || err}`);
+      console.error('Erro ao concluir entrega:', err);
+      // Se offline ou falha de rede, enfileira
+      if (!offlineSyncService.isOnline()) {
+        offlineSyncService.enqueue(entregaId, podData, activeUser.id);
+      } else {
+        throw err;
+      }
     } finally {
       setSyncStatus('sincronizado');
     }
@@ -668,6 +739,10 @@ function MainAppContent() {
                 />
               )}
 
+              {currentTab === 'rotas_clientes' && (
+                <RotasClienteView onNavigateTab={setCurrentTab} />
+              )}
+
               {currentTab === 'pedidos' && (
                 <PedidosView
                   pedidos={pedidos}
@@ -793,6 +868,17 @@ function MainAppContent() {
                 <RelatoriosView
                   entregas={entregas}
                   comites={comites}
+                  pedidos={pedidos}
+                  materiais={materiais}
+                  estoqueSaldos={estoqueSaldos}
+                  estoqueMovimentacoes={estoqueMovimentacoes}
+                  expedicoes={expedicoes}
+                  rotasExpedicao={rotasExpedicao}
+                  motoboys={motoboys}
+                  financeiro={financeiro}
+                  usuarios={usuarios}
+                  logsAuditoria={logsAuditoria}
+                  currentUser={activeUser}
                   onOpenPODModal={(ent) => setViewingPODEntrega(ent)}
                 />
               )}

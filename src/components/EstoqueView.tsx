@@ -113,38 +113,73 @@ export const EstoqueView: React.FC<EstoqueViewProps> = ({
   const [modalDetalhesOpen, setModalDetalhesOpen] = useState(false);
   const [materialParaDetalhes, setMaterialParaDetalhes] = useState<Material | null>(null);
 
-  // Load Data
-  const carregarDados = async () => {
-    try {
-      setLoading(true);
-      const [mats, movs, resvs, invs] = await Promise.all([
-        materiaisRepo.getAll(),
-        estoqueMovimentacoesRepo.getRecent(100),
-        estoqueReservasRepo.getAll(),
-        inventariosRepo.getAll(),
-      ]);
-
-      setMateriais(mats);
-      setMovimentacoes(movs);
-      setReservas(resvs);
-      setInventarios(invs);
-
-      // Carregar saldos de cada material
-      const saldos = await estoqueSaldosRepo.getAll();
-      const sMap: Record<string, EstoqueSaldo> = {};
-      saldos.forEach((s) => {
-        sMap[s.materialId] = s;
-      });
-      setSaldosMap(sMap);
-    } catch (err) {
-      console.error('Erro ao carregar dados do estoque:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Load Data with Realtime Listeners
   useEffect(() => {
-    carregarDados();
+    setLoading(true);
+    const unsubs: Array<() => void> = [];
+
+    // 1. Materiais
+    unsubs.push(
+      materiaisRepo.subscribe(
+        (mats) => {
+          setMateriais(mats);
+          setLoading(false);
+        },
+        (err) => console.error('Erro realtime materiais:', err)
+      )
+    );
+
+    // 2. Saldos
+    unsubs.push(
+      estoqueSaldosRepo.subscribe(
+        (saldos) => {
+          const sMap: Record<string, EstoqueSaldo> = {};
+          saldos.forEach((s) => {
+            sMap[s.materialId] = s;
+          });
+          setSaldosMap(sMap);
+        },
+        (err) => console.error('Erro realtime saldos:', err)
+      )
+    );
+
+    // 3. Movimentações
+    unsubs.push(
+      estoqueMovimentacoesRepo.subscribe(
+        (movs) => {
+          // Ordenar por data decrescente
+          const sorted = [...movs].sort((a, b) => 
+            new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+          );
+          setMovimentacoes(sorted);
+        },
+        (err) => console.error('Erro realtime movimentações:', err)
+      )
+    );
+
+    // 4. Reservas
+    unsubs.push(
+      estoqueReservasRepo.subscribe(
+        (resvs) => {
+          setReservas(resvs);
+        },
+        (err) => console.error('Erro realtime reservas:', err)
+      )
+    );
+
+    // 5. Inventários
+    unsubs.push(
+      inventariosRepo.subscribe(
+        (invs) => {
+          setInventarios(invs);
+        },
+        (err) => console.error('Erro realtime inventários:', err)
+      )
+    );
+
+    return () => {
+      unsubs.forEach((u) => u());
+    };
   }, []);
 
   // Metrics Calculations
@@ -1089,7 +1124,7 @@ export const EstoqueView: React.FC<EstoqueViewProps> = ({
         onClose={() => setModalCadastroOpen(false)}
         materialParaEditar={materialParaEditar}
         onSuccess={() => {
-          carregarDados();
+          // Atualização automática via onSnapshot realtime listener
         }}
         currentUserId={currentUser.id}
         currentUserName={currentUser.nome}
@@ -1102,7 +1137,7 @@ export const EstoqueView: React.FC<EstoqueViewProps> = ({
         saldosMap={saldosMap}
         materialPreSelecionado={materialPreSelecionado}
         onSuccess={() => {
-          carregarDados();
+          // Atualização automática via onSnapshot realtime listener
         }}
         currentUserId={currentUser.id}
         currentUserName={currentUser.nome}
@@ -1115,7 +1150,7 @@ export const EstoqueView: React.FC<EstoqueViewProps> = ({
         saldosMap={saldosMap}
         materialPreSelecionado={materialPreSelecionado}
         onSuccess={() => {
-          carregarDados();
+          // Atualização automática via onSnapshot realtime listener
         }}
         currentUserId={currentUser.id}
         currentUserName={currentUser.nome}
@@ -1128,7 +1163,7 @@ export const EstoqueView: React.FC<EstoqueViewProps> = ({
         saldosMap={saldosMap}
         inventarioAtivo={inventarioSelecionado}
         onSuccess={() => {
-          carregarDados();
+          // Atualização automática via onSnapshot realtime listener
         }}
         currentUser={currentUser}
       />
@@ -1145,7 +1180,7 @@ export const EstoqueView: React.FC<EstoqueViewProps> = ({
         onClose={() => setModalEstornoOpen(false)}
         movimentacao={movimentacaoParaEstorno}
         onSuccess={() => {
-          carregarDados();
+          // Atualização automática via onSnapshot realtime listener
         }}
         currentUser={currentUser}
       />

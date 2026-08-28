@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   TrendingUp,
   Package,
@@ -15,8 +15,9 @@ import {
   MapPin,
   FileCheck,
   Smartphone,
+  Compass,
 } from 'lucide-react';
-import { Comite, Motoboy, Entrega } from '../types';
+import { Comite, Motoboy, Entrega, RegiaoRota } from '../types';
 import {
   formatCurrency,
   formatNumber,
@@ -24,6 +25,7 @@ import {
   getStatusBadgeClass,
 } from '../utils/formatters';
 import { TabType } from './Sidebar';
+import { classificarRegiaoAutomaticamente, REGIOES_CONFIG } from '../utils/geoRegions';
 
 interface DashboardViewProps {
   comites: Comite[];
@@ -67,37 +69,145 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return acc;
   }, 0);
 
-  // Group by Electoral Zones for zone breakdown
-  const zoneBreakdown = [
-    {
-      zona: '001ª Zona Eleitoral (Bela Vista / Centro)',
-      total: 3,
-      concluidas: 2,
-      percent: 66,
-      lider: 'Lucas Rafael (FMT-4E28)',
-    },
-    {
-      zona: '252ª Zona Eleitoral (Tatuapé / Z. Leste)',
-      total: 2,
-      concluidas: 2,
-      percent: 100,
-      lider: 'Geraldo Magela (ELE-2026)',
-    },
-    {
-      zona: '002ª Zona Eleitoral (Perdizes / Paulista)',
-      total: 2,
-      concluidas: 1,
-      percent: 50,
-      lider: 'Bruno Henrique (VOT-7A99)',
-    },
-    {
-      zona: '258ª Zona Eleitoral (Santo Amaro / Z. Sul)',
-      total: 2,
-      concluidas: 0,
-      percent: 0,
-      lider: 'Aguardando Despacho',
-    },
-  ];
+  // Group by the 4 regional/electoral operational zones: Norte, Zona Oeste, Niterói / São Gonçalo, Baixada
+  const zoneBreakdown = useMemo(() => {
+    const regioesDef: {
+      id: RegiaoRota;
+      nome: string;
+      nomeCurto: string;
+      corNome: string;
+      barColor: string;
+      lightBg: string;
+      borderCol: string;
+      textColor: string;
+      badgeCol: string;
+    }[] = [
+      {
+        id: 'Zona Norte',
+        nome: 'Zona Norte',
+        nomeCurto: 'Z. Norte',
+        corNome: 'Azul',
+        barColor: 'bg-blue-600',
+        lightBg: 'bg-blue-50/80',
+        borderCol: 'border-blue-200',
+        textColor: 'text-blue-700',
+        badgeCol: 'bg-blue-100 text-blue-800 border-blue-200',
+      },
+      {
+        id: 'Zona Oeste',
+        nome: 'Zona Oeste',
+        nomeCurto: 'Z. Oeste',
+        corNome: 'Laranja',
+        barColor: 'bg-orange-500',
+        lightBg: 'bg-orange-50/80',
+        borderCol: 'border-orange-200',
+        textColor: 'text-orange-700',
+        badgeCol: 'bg-orange-100 text-orange-800 border-orange-200',
+      },
+      {
+        id: 'Niterói / São Gonçalo',
+        nome: 'Niterói / São Gonçalo',
+        nomeCurto: 'Niterói / SG',
+        corNome: 'Roxo',
+        barColor: 'bg-purple-600',
+        lightBg: 'bg-purple-50/80',
+        borderCol: 'border-purple-200',
+        textColor: 'text-purple-700',
+        badgeCol: 'bg-purple-100 text-purple-800 border-purple-200',
+      },
+      {
+        id: 'Baixada Fluminense',
+        nome: 'Baixada Fluminense',
+        nomeCurto: 'Baixada',
+        corNome: 'Verde',
+        barColor: 'bg-emerald-600',
+        lightBg: 'bg-emerald-50/80',
+        borderCol: 'border-emerald-200',
+        textColor: 'text-emerald-700',
+        badgeCol: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+      },
+    ];
+
+    const getComiteRegion = (comite: Comite): RegiaoRota => {
+      if (comite.regiaoRota && comite.regiaoRota in REGIOES_CONFIG) {
+        return comite.regiaoRota;
+      }
+      return classificarRegiaoAutomaticamente({
+        cep: comite.cep,
+        bairro: comite.bairro,
+        municipio: comite.cidade,
+        endereco: comite.endereco,
+      }).regiao;
+    };
+
+    const getEntregaRegion = (entrega: Entrega): RegiaoRota => {
+      const comite = comites.find((c) => c.id === entrega.comiteId);
+      if (comite) {
+        return getComiteRegion(comite);
+      }
+      return classificarRegiaoAutomaticamente({
+        bairro: entrega.bairro,
+        municipio: entrega.cidade,
+        endereco: entrega.enderecoDestino,
+      }).regiao;
+    };
+
+    return regioesDef.map((reg) => {
+      const cfg = REGIOES_CONFIG[reg.id];
+      const comitesNaRegiao = comites.filter((c) => getComiteRegion(c) === reg.id);
+      const entregasNaRegiao = entregas.filter((e) => getEntregaRegion(e) === reg.id);
+
+      const total = entregasNaRegiao.length;
+      const concluidas = entregasNaRegiao.filter((e) => e.status === 'entregue').length;
+      const emTransito = entregasNaRegiao.filter((e) => e.status === 'em_transito').length;
+      const pendentes = entregasNaRegiao.filter((e) => e.status === 'pendente' || e.status === 'atribuida').length;
+      const volume = entregasNaRegiao.reduce((acc, curr) => acc + (curr.quantidade || 0), 0);
+      const totalClientes = comitesNaRegiao.length;
+
+      // Calculate percentage of completion
+      const percent = total > 0 ? Math.round((concluidas / total) * 100) : totalClientes > 0 ? 100 : 0;
+
+      // Lead or active motoboy
+      const motoboyAtivo = entregasNaRegiao.find((e) => e.status === 'em_transito' && e.motoboyNome)?.motoboyNome;
+      const motoboyConcluido = entregasNaRegiao.find((e) => e.status === 'entregue' && e.motoboyNome)?.motoboyNome;
+      const motoboyAlocado = motoboys.find(
+        (m) =>
+          m.zonaPreferencial &&
+          (m.zonaPreferencial.toLowerCase().includes(reg.nomeCurto.toLowerCase()) ||
+            m.zonaPreferencial.toLowerCase().includes(reg.nome.toLowerCase()))
+      )?.nome;
+
+      const lider = motoboyAtivo
+        ? `${motoboyAtivo} (Em rota)`
+        : motoboyConcluido
+        ? `${motoboyConcluido}`
+        : motoboyAlocado
+        ? `${motoboyAlocado}`
+        : 'Frota Regional Alocada';
+
+      return {
+        id: reg.id,
+        zona: reg.nome,
+        nomeCurto: reg.nomeCurto,
+        corNome: reg.corNome,
+        corHex: cfg.hex,
+        barColor: reg.barColor,
+        lightBg: reg.lightBg,
+        borderCol: reg.borderCol,
+        textColor: reg.textColor,
+        badgeCol: reg.badgeCol,
+        descricao: cfg.descricao,
+        total,
+        concluidas,
+        emTransito,
+        pendentes,
+        totalClientes,
+        volume,
+        percent,
+        lider,
+      };
+    });
+  }, [comites, entregas, motoboys]);
 
   return (
     <div className="space-y-6">
@@ -399,39 +509,94 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         {/* Right Column: Zone Progress & Motoboy Fleet Live */}
         <div className="space-y-4">
-          {/* Electoral Zones Progress */}
+          {/* Electoral & Regional Zones Progress */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                Distribuição por Zona Eleitoral
-              </h3>
-              <span className="text-[10px] text-slate-500 font-medium">Meta Diária</span>
+              <div>
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <Compass className="w-3.5 h-3.5 text-[#E05328]" />
+                  Distribuição por Zona Eleitoral
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Norte, Zona Oeste, Niterói/SG e Baixada
+                </p>
+              </div>
+              <button
+                onClick={() => onNavigate('rotas_cliente')}
+                className="text-[11px] font-bold text-[#E05328] hover:text-orange-700 flex items-center gap-0.5"
+              >
+                <span>Rotas</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
             </div>
 
-            <div className="space-y-3.5 mt-3">
-              {zoneBreakdown.map((z, idx) => (
-                <div key={idx} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-800 truncate max-w-[180px]" title={z.zona}>
-                      {z.zona}
+            {/* Quick 4-zone summary cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mt-3 pt-1">
+              {zoneBreakdown.map((z) => (
+                <div
+                  key={z.id}
+                  className={`p-2 rounded-xl border text-center transition-all ${z.lightBg} ${z.borderCol}`}
+                >
+                  <p className="text-[10px] font-black uppercase tracking-wider truncate" style={{ color: z.corHex }}>
+                    {z.nomeCurto}
+                  </p>
+                  <p className="text-sm font-black text-slate-900 mt-0.5">
+                    {z.total} <span className="text-[9px] font-normal text-slate-500">entregas</span>
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-medium truncate">
+                    {z.totalClientes} comitês
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* Detailed list for each of the 4 zones */}
+            <div className="space-y-3 mt-3.5">
+              {zoneBreakdown.map((z) => (
+                <div key={z.id} className="p-3 rounded-xl bg-slate-50/70 border border-slate-100 space-y-2 hover:bg-slate-50 transition-all">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: z.corHex }} />
+                      <span className="font-bold text-xs text-slate-900 truncate">
+                        {z.zona}
+                      </span>
+                      <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-full border shrink-0 ${z.badgeCol}`}>
+                        {z.corNome}
+                      </span>
+                    </div>
+                    <span className="font-black text-xs text-slate-900 shrink-0">
+                      {z.percent}%
                     </span>
-                    <span className="font-bold text-slate-900">{z.percent}%</span>
                   </div>
-                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+
+                  {/* Progress bar styled with zone's distinct color */}
+                  <div className="w-full h-2 bg-slate-200/80 rounded-full overflow-hidden">
                     <div
-                      className={`h-full rounded-full ${
-                        z.percent === 100
-                          ? 'bg-emerald-500'
-                          : z.percent >= 50
-                          ? 'bg-orange-500'
-                          : 'bg-amber-400'
-                      }`}
-                      style={{ width: `${z.percent}%` }}
+                      className={`h-full rounded-full transition-all duration-500 ${z.barColor}`}
+                      style={{ width: `${Math.max(z.percent, z.total > 0 ? 5 : 0)}%` }}
                     />
                   </div>
-                  <div className="flex items-center justify-between text-[10px] text-slate-400">
-                    <span>{z.concluidas} de {z.total} entregas</span>
-                    <span>{z.lider}</span>
+
+                  {/* Metrics details */}
+                  <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] text-slate-500">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-semibold text-slate-700">
+                        {z.concluidas} de {z.total} entregas
+                      </span>
+                      {z.emTransito > 0 && (
+                        <span className="text-amber-600 font-semibold">
+                          • {z.emTransito} em rota
+                        </span>
+                      )}
+                      {z.volume > 0 && (
+                        <span className="text-slate-400">
+                          • {formatNumber(z.volume)} un.
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-slate-400 truncate max-w-[130px]" title={z.lider}>
+                      {z.lider}
+                    </span>
                   </div>
                 </div>
               ))}

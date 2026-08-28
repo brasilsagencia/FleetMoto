@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Building2,
   Search,
@@ -25,13 +25,22 @@ import {
   Package,
   Layers,
   Send,
+  Navigation,
   X,
   Sparkles,
   Car,
   Tag,
   Check,
+  Compass,
 } from 'lucide-react';
-import { Comite, StatusComite, CargoEleitoral, OrigemCliente } from '../types';
+import { Comite, StatusComite, CargoEleitoral, OrigemCliente, RegiaoRota } from '../types';
+import { RotasClienteView } from './rotas-cliente/RotasClienteView';
+import {
+  OPCOES_REGIAO_ROTA,
+  getRegiaoRotaConfig,
+  classificarRegiaoAutomaticamente,
+  REGIOES_CONFIG,
+} from '../utils/geoRegions';
 import {
   formatCurrency,
   formatCNPJ,
@@ -91,41 +100,63 @@ export const OPCOES_ORIGEM: Array<{
   sublabel: string;
   icon: string;
   badgeClass: string;
+  colorClass: string;
 }> = [
+  {
+    id: 'rosane',
+    label: 'Rosane',
+    sublabel: 'Indicação Rosane',
+    icon: '🌸',
+    badgeClass: 'bg-purple-50 text-purple-800 border-purple-300 font-bold',
+    colorClass: 'bg-purple-100 text-purple-800 border-purple-300',
+  },
   {
     id: 'esther',
     label: 'Esther',
     sublabel: 'Indicação Esther',
     icon: '⭐',
     badgeClass: 'bg-fuchsia-50 text-fuchsia-800 border-fuchsia-300 font-bold',
-  },
-  {
-    id: 'CRM',
-    label: 'CRM',
-    sublabel: 'Base Corporativa',
-    icon: '💼',
-    badgeClass: 'bg-blue-50 text-blue-700 border-blue-200',
+    colorClass: 'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-300',
   },
   {
     id: 'Instagram',
     label: 'Instagram',
-    sublabel: 'Redes Sociais',
+    sublabel: 'Redes Sociais / Leads',
     icon: '📸',
-    badgeClass: 'bg-pink-50 text-pink-700 border-pink-200',
+    badgeClass: 'bg-pink-50 text-pink-700 border-pink-200 font-bold',
+    colorClass: 'bg-pink-100 text-pink-700 border-pink-300',
+  },
+  {
+    id: 'descricao',
+    label: 'Descrição',
+    sublabel: 'Detalhamento / Direto',
+    icon: '📝',
+    badgeClass: 'bg-teal-50 text-teal-800 border-teal-200 font-bold',
+    colorClass: 'bg-teal-100 text-teal-800 border-teal-300',
+  },
+  {
+    id: 'CRM',
+    label: 'CRM',
+    sublabel: 'Base Corporativa / CRM',
+    icon: '💼',
+    badgeClass: 'bg-blue-50 text-blue-700 border-blue-200 font-bold',
+    colorClass: 'bg-blue-100 text-blue-700 border-blue-300',
   },
   {
     id: 'prata',
     label: 'Prata',
     sublabel: 'Plano Intermediário',
     icon: '🥈',
-    badgeClass: 'bg-slate-100 text-slate-700 border-slate-300',
+    badgeClass: 'bg-slate-100 text-slate-700 border-slate-300 font-bold',
+    colorClass: 'bg-slate-100 text-slate-700 border-slate-300',
   },
   {
     id: 'ouro',
     label: 'Ouro',
-    sublabel: 'Plano VIP / Prioritário',
+    sublabel: 'Prioritário / Especial',
     icon: '👑',
-    badgeClass: 'bg-amber-100 text-amber-800 border-amber-300',
+    badgeClass: 'bg-amber-100 text-amber-800 border-amber-300 font-bold',
+    colorClass: 'bg-amber-100 text-amber-800 border-amber-300',
   },
 ];
 
@@ -147,20 +178,53 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
   initialSearchQuery = '',
 }) => {
   const [searchTerm, setSearchTerm] = useState(initialSearchQuery);
+  const [secaoAtiva, setSecaoAtiva] = useState<'lista_clientes' | 'criacao_rotas'>('lista_clientes');
+  const [clienteParaRotaId, setClienteParaRotaId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('todos');
   const [origemFilter, setOrigemFilter] = useState<string>('todos');
   const [materialFilter, setMaterialFilter] = useState<string>('todos');
+  const [filtroRegiao, setFiltroRegiao] = useState<string>('todas');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(6);
 
   // Modals & Details state
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalTab, setModalTab] = useState<'origem' | 'agendamento' | 'materiais' | 'descricao'>('origem');
   const [editingComite, setEditingComite] = useState<Comite | null>(null);
   const [selectedComiteDetails, setSelectedComiteDetails] = useState<Comite | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Form State
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    nome: string;
+    candidato: string;
+    cargo: CargoEleitoral;
+    partido: string;
+    numero: string;
+    cnpjCampanha: string;
+    responsavel: string;
+    cargoResponsavel: string;
+    telefone: string;
+    email: string;
+    endereco: string;
+    numeroEnd: string;
+    bairro: string;
+    cidade: string;
+    uf: string;
+    cep: string;
+    regiaoRota?: RegiaoRota;
+    origemCliente: OrigemCliente;
+    data: string;
+    horario: string;
+    interferencia: string;
+    materiais: string[];
+    modeloCarro: string;
+    zonaEleitoral: string;
+    secoesAtendidas: string;
+    valorBaseRota: number;
+    status: StatusComite;
+    observacoes: string;
+  }>({
     nome: '',
     candidato: '',
     cargo: 'Deputado Federal' as CargoEleitoral,
@@ -174,14 +238,15 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
     endereco: '',
     numeroEnd: '',
     bairro: '',
-    cidade: 'São Paulo',
-    uf: 'SP',
+    cidade: 'Rio de Janeiro',
+    uf: 'RJ',
     cep: '',
-    origemCliente: 'esther' as OrigemCliente,
+    regiaoRota: undefined,
+    origemCliente: 'rosane' as OrigemCliente,
     data: new Date().toISOString().slice(0, 10),
     horario: '14:00',
     interferencia: '',
-    materiais: ['perfurado', 'santao'] as string[],
+    materiais: ['perfurado', 'santao'],
     modeloCarro: '',
     zonaEleitoral: '',
     secoesAtendidas: '',
@@ -189,6 +254,43 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
     status: 'ativo' as StatusComite,
     observacoes: '',
   });
+
+  // Sugestão automática de região baseada no endereço/CEP digitados no modal
+  const sugestaoRegiao = useMemo(() => {
+    if (!formData.endereco && !formData.bairro && !formData.cidade && !formData.cep) {
+      return null;
+    }
+    return classificarRegiaoAutomaticamente({
+      cep: formData.cep,
+      bairro: formData.bairro,
+      municipio: formData.cidade,
+      endereco: formData.endereco,
+    });
+  }, [formData.endereco, formData.bairro, formData.cidade, formData.cep]);
+
+  // Alerta de divergência entre CEP/Endereço e a Rota selecionada
+  const divergenciaCepAviso = useMemo(() => {
+    if (!formData.regiaoRota || !formData.cep) return null;
+    const cepDigits = formData.cep.replace(/\D/g, '');
+    if (
+      cepDigits.length >= 5 &&
+      sugestaoRegiao &&
+      sugestaoRegiao.confianca === 'alta' &&
+      sugestaoRegiao.regiao !== formData.regiaoRota
+    ) {
+      return `Aviso de Divergência: O CEP/Bairro informado (${formData.cep} - ${formData.bairro || 'bairro'}) sugere "${sugestaoRegiao.regiao}" (${sugestaoRegiao.motivo}), mas a rota escolhida manualmente é "${formData.regiaoRota}". Você pode prosseguir ou ajustar a rota se desejar.`;
+    }
+    return null;
+  }, [formData.regiaoRota, formData.cep, formData.bairro, sugestaoRegiao]);
+
+  const handleAplicarSugestaoRegiao = () => {
+    if (sugestaoRegiao) {
+      setFormData((prev) => ({
+        ...prev,
+        regiaoRota: sugestaoRegiao.regiao,
+      }));
+    }
+  };
 
   // Filtered comites
   const filteredComites = useMemo(() => {
@@ -199,6 +301,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
         c.telefone.includes(searchTerm) ||
         c.endereco.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (c.cep && c.cep.includes(searchTerm)) ||
+        (c.regiaoRota && c.regiaoRota.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (c.modeloCarro && c.modeloCarro.toLowerCase().includes(searchTerm.toLowerCase())) ||
         c.responsavel.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.bairro.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -214,10 +317,16 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
         materialFilter === 'todos'
           ? true
           : c.materiais && c.materiais.includes(materialFilter);
+      const matchesRegiao =
+        filtroRegiao === 'todas'
+          ? true
+          : filtroRegiao === 'sem_rota'
+          ? !c.regiaoRota
+          : c.regiaoRota === filtroRegiao;
 
-      return matchesSearch && matchesStatus && matchesOrigem && matchesMaterial;
+      return matchesSearch && matchesStatus && matchesOrigem && matchesMaterial && matchesRegiao;
     });
-  }, [comites, searchTerm, statusFilter, origemFilter, materialFilter]);
+  }, [comites, searchTerm, statusFilter, origemFilter, materialFilter, filtroRegiao]);
 
   // Pagination logic
   const totalPages = Math.ceil(filteredComites.length / itemsPerPage) || 1;
@@ -226,7 +335,14 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
     return filteredComites.slice(start, start + itemsPerPage);
   }, [filteredComites, currentPage, itemsPerPage]);
 
-  // Statistics
+  // Estatísticas por Região / Rota
+  const clientesZonaNorteCount = comites.filter((c) => c.regiaoRota === 'Zona Norte').length;
+  const clientesZonaOesteCount = comites.filter((c) => c.regiaoRota === 'Zona Oeste').length;
+  const clientesBaixadaCount = comites.filter((c) => c.regiaoRota === 'Baixada Fluminense').length;
+  const clientesNiteroiSGCount = comites.filter((c) => c.regiaoRota === 'Niterói / São Gonçalo').length;
+  const clientesSemRotaCount = comites.filter((c) => !c.regiaoRota).length;
+
+  // Statistics de Origem e Geral
   const totalMateriaisTodos = comites.reduce(
     (acc, curr) => acc + curr.volumeTotalMateriais,
     0
@@ -235,7 +351,12 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
     (acc, curr) => acc + curr.totalEntregas,
     0
   );
+  const clientesRosaneCount = comites.filter((c) => c.origemCliente === 'rosane').length;
   const clientesEstherCount = comites.filter((c) => c.origemCliente === 'esther').length;
+  const clientesInstagramCount = comites.filter((c) => c.origemCliente === 'Instagram').length;
+  const clientesDescricaoCount = comites.filter((c) => c.origemCliente === 'descricao').length;
+  const clientesCRMCount = comites.filter((c) => c.origemCliente === 'CRM').length;
+  const clientesPrataCount = comites.filter((c) => c.origemCliente === 'prata').length;
   const clientesOuroCount = comites.filter((c) => c.origemCliente === 'ouro').length;
   const perfuradosDemandCount = comites.filter(
     (c) => c.materiais && c.materiais.includes('perfurado')
@@ -243,6 +364,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
 
   const handleOpenNewModal = () => {
     setEditingComite(null);
+    setModalTab('origem');
     setFormData({
       nome: '',
       candidato: '',
@@ -257,10 +379,11 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
       endereco: '',
       numeroEnd: '',
       bairro: '',
-      cidade: 'São Paulo',
-      uf: 'SP',
+      cidade: 'Rio de Janeiro',
+      uf: 'RJ',
       cep: '',
-      origemCliente: 'esther',
+      regiaoRota: undefined,
+      origemCliente: 'rosane',
       data: new Date().toISOString().slice(0, 10),
       horario: '14:00',
       interferencia: '',
@@ -277,6 +400,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
 
   const handleOpenEditModal = (comite: Comite) => {
     setEditingComite(comite);
+    setModalTab('origem');
     setFormData({
       nome: comite.nome,
       candidato: comite.candidato,
@@ -291,10 +415,11 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
       endereco: comite.endereco,
       numeroEnd: comite.numeroEnd,
       bairro: comite.bairro,
-      cidade: comite.cidade,
-      uf: comite.uf,
+      cidade: comite.cidade || 'Rio de Janeiro',
+      uf: comite.uf || 'RJ',
       cep: comite.cep || '',
-      origemCliente: comite.origemCliente || 'esther',
+      regiaoRota: comite.regiaoRota,
+      origemCliente: comite.origemCliente || 'rosane',
       data: comite.data || new Date().toISOString().slice(0, 10),
       horario: comite.horario || '14:00',
       interferencia: comite.interferencia || '',
@@ -327,6 +452,13 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
       return;
     }
 
+    // Validação obrigatória do campo Região/Rota
+    if (!formData.regiaoRota) {
+      alert('O campo Região/Rota é obrigatório para concluir o cadastro. Por favor, selecione uma rota no menu suspenso (Zona Norte, Zona Oeste, Baixada Fluminense ou Niterói / São Gonçalo).');
+      setModalTab('agendamento');
+      return;
+    }
+
     if (editingComite) {
       onUpdateComite({
         ...editingComite,
@@ -343,6 +475,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
       'ID',
       'Nome do Cliente',
       'Candidato/Titular',
+      'Regiao/Rota',
       'Origem / Indicacao',
       'Data',
       'Horario',
@@ -362,6 +495,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
       c.id,
       `"${c.nome}"`,
       `"${c.candidato}"`,
+      `"${c.regiaoRota || 'Rota não definida'}"`,
       `"${c.origemCliente || 'esther'}"`,
       `"${c.data || ''}"`,
       `"${c.horario || ''}"`,
@@ -411,109 +545,438 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Metrics Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {/* Total Clientes */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Total Clientes
-            </p>
-            <h3 className="text-xl font-black text-slate-900 mt-1">
-              {comites.length}
-            </h3>
-            <p className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              {comites.filter((c) => c.status === 'ativo').length} ativos
-            </p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-orange-50 text-[#E05328] flex items-center justify-center border border-orange-100 shrink-0">
-            <Building2 className="w-5 h-5" />
-          </div>
+      {/* Seletor de Seção: Clientes Cadastrados vs Criação de Rotas */}
+      <div className="flex items-center justify-between bg-white p-2.5 rounded-3xl border border-slate-200 shadow-xs flex-wrap gap-2">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl">
+          <button
+            onClick={() => setSecaoAtiva('lista_clientes')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              secaoAtiva === 'lista_clientes'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Building2 className="w-4 h-4 text-[#E05328]" />
+            <span>Clientes Cadastrados ({comites.length})</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setClienteParaRotaId(null);
+              setSecaoAtiva('criacao_rotas');
+            }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              secaoAtiva === 'criacao_rotas'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Navigation className="w-4 h-4 text-blue-600" />
+            <span>Criação de Rotas</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#E05328] text-white font-black">
+              4 Regiões
+            </span>
+          </button>
         </div>
 
-        {/* Indicações Esther */}
-        <div 
-          onClick={() => setOrigemFilter(origemFilter === 'esther' ? 'todos' : 'esther')}
-          className={`p-4 rounded-2xl border shadow-xs flex items-center justify-between cursor-pointer transition-all ${
-            origemFilter === 'esther'
-              ? 'bg-fuchsia-50/80 border-fuchsia-400 ring-2 ring-fuchsia-300'
-              : 'bg-white border-slate-200 hover:border-fuchsia-200 hover:bg-fuchsia-50/30'
-          }`}
-        >
-          <div>
-            <div className="flex items-center gap-1">
-              <p className="text-[11px] font-black text-fuchsia-800 uppercase tracking-wider">
-                Indicação Esther
-              </p>
-              <Star className="w-3 h-3 text-fuchsia-600 fill-fuchsia-600" />
-            </div>
-            <h3 className="text-xl font-black text-fuchsia-800 mt-1">
-              {clientesEstherCount}
-            </h3>
-            <p className="text-[10px] text-fuchsia-600 font-medium mt-0.5">
-              {origemFilter === 'esther' ? 'Filtro ativado (clique p/ limpar)' : 'Clique p/ filtrar'}
-            </p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-fuchsia-100 text-fuchsia-700 flex items-center justify-center border border-fuchsia-200 shrink-0">
-            <span className="text-lg">⭐</span>
-          </div>
-        </div>
-
-        {/* Clientes Ouro */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Plano VIP / Ouro
-            </p>
-            <h3 className="text-xl font-black text-amber-600 mt-1">
-              {clientesOuroCount}
-            </h3>
-            <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-              Despacho prioritário
-            </p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100 shrink-0">
-            <span className="text-lg">👑</span>
-          </div>
-        </div>
-
-        {/* Perfurados */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
-          <div>
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Perfurados & Carros
-            </p>
-            <h3 className="text-xl font-black text-indigo-600 mt-1">
-              {perfuradosDemandCount}
-            </h3>
-            <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-              Vidro traseiro
-            </p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 shrink-0">
-            <Car className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Entregas Realizadas */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between col-span-2 sm:col-span-1">
-          <div>
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Entregas Feitas
-            </p>
-            <h3 className="text-xl font-black text-slate-900 mt-1">
-              {formatNumber(totalEntregasTodos)}
-            </h3>
-            <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-              {formatNumber(totalMateriaisTodos)} materiais
-            </p>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shrink-0">
-            <Package className="w-5 h-5" />
-          </div>
-        </div>
+        {secaoAtiva === 'lista_clientes' && (
+          <button
+            id="open-novo-comite-modal-btn"
+            onClick={handleOpenNewModal}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-xs font-bold text-white bg-[#E05328] hover:bg-orange-700 shadow-xs transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Novo Cliente</span>
+          </button>
+        )}
       </div>
+
+      {/* Renderização Condicional: Seção Criação de Rotas */}
+      {secaoAtiva === 'criacao_rotas' ? (
+        <RotasClienteView initialClienteId={clienteParaRotaId} />
+      ) : (
+        <>
+          {/* 4 Indicadores Principais de Região / Rota + Total & Sem Rota */}
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Zona Norte (Azul) */}
+            <div
+              onClick={() => {
+                setFiltroRegiao(filtroRegiao === 'Zona Norte' ? 'todas' : 'Zona Norte');
+                setCurrentPage(1);
+              }}
+              className={`p-3.5 rounded-2xl border shadow-xs flex items-center justify-between cursor-pointer transition-all ${
+                filtroRegiao === 'Zona Norte'
+                  ? 'bg-blue-100/90 border-blue-400 ring-2 ring-blue-300 shadow-sm'
+                  : 'bg-blue-50/50 border-blue-200 hover:border-blue-300 hover:bg-blue-50/80'
+              }`}
+            >
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                  <p className="text-[11px] font-black text-blue-900 uppercase tracking-wider">
+                    Zona Norte
+                  </p>
+                </div>
+                <h3 className="text-xl font-black text-blue-900 mt-1">
+                  {clientesZonaNorteCount}{' '}
+                  <span className="text-xs font-semibold text-blue-700">clientes</span>
+                </h3>
+                <p className="text-[10px] text-blue-600 font-medium mt-0.5">
+                  {filtroRegiao === 'Zona Norte' ? '● Filtro ativo' : 'Tijuca, Méier, Madureira...'}
+                </p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs font-bold shrink-0">
+                <Navigation className="w-5 h-5" />
+              </div>
+            </div>
+
+            {/* Zona Oeste (Laranja) */}
+            <div
+              onClick={() => {
+                setFiltroRegiao(filtroRegiao === 'Zona Oeste' ? 'todas' : 'Zona Oeste');
+                setCurrentPage(1);
+              }}
+              className={`p-3.5 rounded-2xl border shadow-xs flex items-center justify-between cursor-pointer transition-all ${
+                filtroRegiao === 'Zona Oeste'
+                  ? 'bg-orange-100/90 border-orange-400 ring-2 ring-orange-300 shadow-sm'
+                  : 'bg-orange-50/50 border-orange-200 hover:border-orange-300 hover:bg-orange-50/80'
+              }`}
+            >
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-orange-600"></span>
+                  <p className="text-[11px] font-black text-orange-900 uppercase tracking-wider">
+                    Zona Oeste
+                  </p>
+                </div>
+                <h3 className="text-xl font-black text-orange-900 mt-1">
+                  {clientesZonaOesteCount}{' '}
+                  <span className="text-xs font-semibold text-orange-700">clientes</span>
+                </h3>
+                <p className="text-[10px] text-orange-600 font-medium mt-0.5">
+                  {filtroRegiao === 'Zona Oeste' ? '● Filtro ativo' : 'Barra, Recreio, Campo Grande...'}
+                </p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-orange-600 text-white flex items-center justify-center shadow-xs font-bold shrink-0">
+                <Navigation className="w-5 h-5" />
+              </div>
+            </div>
+
+            {/* Baixada Fluminense (Verde) */}
+            <div
+              onClick={() => {
+                setFiltroRegiao(filtroRegiao === 'Baixada Fluminense' ? 'todas' : 'Baixada Fluminense');
+                setCurrentPage(1);
+              }}
+              className={`p-3.5 rounded-2xl border shadow-xs flex items-center justify-between cursor-pointer transition-all ${
+                filtroRegiao === 'Baixada Fluminense'
+                  ? 'bg-emerald-100/90 border-emerald-400 ring-2 ring-emerald-300 shadow-sm'
+                  : 'bg-emerald-50/50 border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50/80'
+              }`}
+            >
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                  <p className="text-[11px] font-black text-emerald-900 uppercase tracking-wider">
+                    Baixada Fluminense
+                  </p>
+                </div>
+                <h3 className="text-xl font-black text-emerald-900 mt-1">
+                  {clientesBaixadaCount}{' '}
+                  <span className="text-xs font-semibold text-emerald-700">clientes</span>
+                </h3>
+                <p className="text-[10px] text-emerald-600 font-medium mt-0.5">
+                  {filtroRegiao === 'Baixada Fluminense' ? '● Filtro ativo' : 'Caxias, Nova Iguaçu, Belford Roxo...'}
+                </p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs font-bold shrink-0">
+                <Navigation className="w-5 h-5" />
+              </div>
+            </div>
+
+            {/* Niterói / São Gonçalo (Roxo) */}
+            <div
+              onClick={() => {
+                setFiltroRegiao(filtroRegiao === 'Niterói / São Gonçalo' ? 'todas' : 'Niterói / São Gonçalo');
+                setCurrentPage(1);
+              }}
+              className={`p-3.5 rounded-2xl border shadow-xs flex items-center justify-between cursor-pointer transition-all ${
+                filtroRegiao === 'Niterói / São Gonçalo'
+                  ? 'bg-purple-100/90 border-purple-400 ring-2 ring-purple-300 shadow-sm'
+                  : 'bg-purple-50/50 border-purple-200 hover:border-purple-300 hover:bg-purple-50/80'
+              }`}
+            >
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-purple-600"></span>
+                  <p className="text-[11px] font-black text-purple-900 uppercase tracking-wider">
+                    Niterói / São Gonçalo
+                  </p>
+                </div>
+                <h3 className="text-xl font-black text-purple-900 mt-1">
+                  {clientesNiteroiSGCount}{' '}
+                  <span className="text-xs font-semibold text-purple-700">clientes</span>
+                </h3>
+                <p className="text-[10px] text-purple-600 font-medium mt-0.5">
+                  {filtroRegiao === 'Niterói / São Gonçalo' ? '● Filtro ativo' : 'Icaraí, Centro, Alcântara, Neves...'}
+                </p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-xs font-bold shrink-0">
+                <Navigation className="w-5 h-5" />
+              </div>
+            </div>
+          </div>
+
+          {/* Aviso se houver clientes com Rota não definida */}
+          {clientesSemRotaCount > 0 && (
+            <div
+              onClick={() => {
+                setFiltroRegiao('sem_rota');
+                setCurrentPage(1);
+              }}
+              className="flex items-center justify-between p-3 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 cursor-pointer hover:bg-amber-100/70 transition-all shadow-xs"
+            >
+              <div className="flex items-center gap-2.5">
+                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+                <div>
+                  <p className="text-xs font-bold">
+                    {clientesSemRotaCount} cliente(s) cadastrado(s) com status <strong>Rota não definida</strong>
+                  </p>
+                  <p className="text-[11px] text-amber-700">
+                    Clique aqui para filtrar esses clientes e definir a Região/Rota correspondente na edição.
+                  </p>
+                </div>
+              </div>
+              <span className="text-xs font-bold text-amber-800 underline shrink-0">
+                Filtrar sem rota →
+              </span>
+            </div>
+          )}
+
+          {/* Secondary Origin & Total Metrics */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+            {/* Total Geral */}
+            <div 
+              onClick={() => { setOrigemFilter('todos'); setFiltroRegiao('todas'); setCurrentPage(1); }}
+              className={`p-3 rounded-2xl border shadow-xs flex items-center justify-between cursor-pointer transition-all ${
+                origemFilter === 'todos' && filtroRegiao === 'todas'
+                  ? 'bg-slate-100 border-slate-400 ring-2 ring-slate-300'
+                  : 'bg-white border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <div>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  Total Geral
+                </p>
+                <h3 className="text-base font-black text-slate-900 mt-0.5">
+                  {comites.length}
+                </h3>
+                <p className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  {comites.filter((c) => c.status === 'ativo').length} ativos
+                </p>
+              </div>
+              <div className="w-8 h-8 rounded-xl bg-orange-50 text-[#E05328] flex items-center justify-center border border-orange-100 shrink-0">
+                <Building2 className="w-3.5 h-3.5" />
+              </div>
+            </div>
+
+            {/* Indicações Rosane */}
+            <div 
+              onClick={() => { setOrigemFilter(origemFilter === 'rosane' ? 'todos' : 'rosane'); setCurrentPage(1); }}
+              className={`p-3 rounded-2xl border shadow-xs flex items-center justify-between cursor-pointer transition-all ${
+                origemFilter === 'rosane'
+                  ? 'bg-purple-50 border-purple-400 ring-2 ring-purple-300'
+                  : 'bg-white border-slate-200 hover:border-purple-200 hover:bg-purple-50/30'
+              }`}
+            >
+              <div>
+                <div className="flex items-center gap-1">
+                  <p className="text-[10px] font-black text-purple-800 uppercase tracking-wider">
+                    Rosane
+                  </p>
+                  <span>🌸</span>
+                </div>
+                <h3 className="text-base font-black text-purple-800 mt-0.5">
+                  {clientesRosaneCount}
+                </h3>
+                <p className="text-[10px] text-purple-600 font-medium mt-0.5">
+                  {origemFilter === 'rosane' ? 'Filtro ativo' : 'Indicação'}
+                </p>
+              </div>
+              <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center border border-purple-200 shrink-0 text-xs">
+                🌸
+              </div>
+            </div>
+
+            {/* Indicações Esther */}
+            <div 
+              onClick={() => { setOrigemFilter(origemFilter === 'esther' ? 'todos' : 'esther'); setCurrentPage(1); }}
+              className={`p-3 rounded-2xl border shadow-xs flex items-center justify-between cursor-pointer transition-all ${
+                origemFilter === 'esther'
+                  ? 'bg-fuchsia-50 border-fuchsia-400 ring-2 ring-fuchsia-300'
+                  : 'bg-white border-slate-200 hover:border-fuchsia-200 hover:bg-fuchsia-50/30'
+              }`}
+            >
+              <div>
+                <div className="flex items-center gap-1">
+                  <p className="text-[10px] font-black text-fuchsia-800 uppercase tracking-wider">
+                    Esther
+                  </p>
+                  <Star className="w-2.5 h-2.5 text-fuchsia-600 fill-fuchsia-600" />
+                </div>
+                <h3 className="text-base font-black text-fuchsia-800 mt-0.5">
+                  {clientesEstherCount}
+                </h3>
+                <p className="text-[10px] text-fuchsia-600 font-medium mt-0.5">
+                  {origemFilter === 'esther' ? 'Filtro ativo' : 'Indicação'}
+                </p>
+              </div>
+              <div className="w-8 h-8 rounded-xl bg-fuchsia-100 text-fuchsia-700 flex items-center justify-center border border-fuchsia-200 shrink-0 text-xs">
+                ⭐
+              </div>
+            </div>
+
+            {/* Instagram / Leads */}
+            <div 
+              onClick={() => { setOrigemFilter(origemFilter === 'Instagram' ? 'todos' : 'Instagram'); setCurrentPage(1); }}
+              className={`p-3 rounded-2xl border shadow-xs flex items-center justify-between cursor-pointer transition-all ${
+                origemFilter === 'Instagram'
+                  ? 'bg-pink-50 border-pink-400 ring-2 ring-pink-300'
+                  : 'bg-white border-slate-200 hover:border-pink-200 hover:bg-pink-50/30'
+              }`}
+            >
+              <div>
+                <div className="flex items-center gap-1">
+                  <p className="text-[10px] font-bold text-pink-700 uppercase tracking-wider">
+                    Instagram
+                  </p>
+                  <span>📸</span>
+                </div>
+                <h3 className="text-base font-black text-pink-700 mt-0.5">
+                  {clientesInstagramCount}
+                </h3>
+                <p className="text-[10px] text-pink-600 font-medium mt-0.5">
+                  {origemFilter === 'Instagram' ? 'Filtro ativo' : 'Redes'}
+                </p>
+              </div>
+              <div className="w-8 h-8 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center border border-pink-200 shrink-0 text-xs">
+                📸
+              </div>
+            </div>
+
+            {/* Descrição / Direto */}
+            <div 
+              onClick={() => { setOrigemFilter(origemFilter === 'descricao' ? 'todos' : 'descricao'); setCurrentPage(1); }}
+              className={`p-3 rounded-2xl border shadow-xs flex items-center justify-between cursor-pointer transition-all ${
+                origemFilter === 'descricao'
+                  ? 'bg-teal-50 border-teal-400 ring-2 ring-teal-300'
+                  : 'bg-white border-slate-200 hover:border-teal-200 hover:bg-teal-50/30'
+              }`}
+            >
+              <div>
+                <div className="flex items-center gap-1">
+                  <p className="text-[10px] font-bold text-teal-800 uppercase tracking-wider">
+                    Descrição
+                  </p>
+                  <span>📝</span>
+                </div>
+                <h3 className="text-base font-black text-teal-800 mt-0.5">
+                  {clientesDescricaoCount}
+                </h3>
+                <p className="text-[10px] text-teal-600 font-medium mt-0.5">
+                  {origemFilter === 'descricao' ? 'Filtro ativo' : 'Direto'}
+                </p>
+              </div>
+              <div className="w-8 h-8 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center border border-teal-200 shrink-0 text-xs">
+                📝
+              </div>
+            </div>
+
+            {/* Clientes CRM */}
+            <div 
+              onClick={() => { setOrigemFilter(origemFilter === 'CRM' ? 'todos' : 'CRM'); setCurrentPage(1); }}
+              className={`p-3 rounded-2xl border shadow-xs flex items-center justify-between cursor-pointer transition-all ${
+                origemFilter === 'CRM'
+                  ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-300'
+                  : 'bg-white border-slate-200 hover:border-blue-200 hover:bg-blue-50/30'
+              }`}
+            >
+              <div>
+                <div className="flex items-center gap-1">
+                  <p className="text-[10px] font-bold text-blue-800 uppercase tracking-wider">
+                    CRM
+                  </p>
+                  <span>💼</span>
+                </div>
+                <h3 className="text-base font-black text-blue-700 mt-0.5">
+                  {clientesCRMCount}
+                </h3>
+                <p className="text-[10px] text-blue-600 font-medium mt-0.5">
+                  {origemFilter === 'CRM' ? 'Filtro ativo' : 'Base de dados'}
+                </p>
+              </div>
+              <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center border border-blue-200 shrink-0 text-xs">
+                💼
+              </div>
+            </div>
+
+            {/* Prata 🥈 */}
+            <div 
+              onClick={() => { setOrigemFilter(origemFilter === 'prata' ? 'todos' : 'prata'); setCurrentPage(1); }}
+              className={`p-3 rounded-2xl border shadow-xs flex items-center justify-between cursor-pointer transition-all ${
+                origemFilter === 'prata'
+                  ? 'bg-slate-200/90 border-slate-400 ring-2 ring-slate-400 shadow-sm'
+                  : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <div>
+                <div className="flex items-center gap-1">
+                  <p className="text-[10px] font-bold text-slate-800 uppercase tracking-wider">
+                    Prata
+                  </p>
+                  <span>🥈</span>
+                </div>
+                <h3 className="text-base font-black text-slate-800 mt-0.5">
+                  {clientesPrataCount}
+                </h3>
+                <p className="text-[10px] text-slate-600 font-medium mt-0.5">
+                  {origemFilter === 'prata' ? 'Filtro ativo' : 'Intermediário'}
+                </p>
+              </div>
+              <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center border border-slate-300 shrink-0 text-xs">
+                🥈
+              </div>
+            </div>
+
+            {/* Ouro 👑 */}
+            <div 
+              onClick={() => { setOrigemFilter(origemFilter === 'ouro' ? 'todos' : 'ouro'); setCurrentPage(1); }}
+              className={`p-3 rounded-2xl border shadow-xs flex items-center justify-between cursor-pointer transition-all ${
+                origemFilter === 'ouro'
+                  ? 'bg-amber-100 border-amber-400 ring-2 ring-amber-300 shadow-sm'
+                  : 'bg-white border-slate-200 hover:border-amber-300 hover:bg-amber-50/40'
+              }`}
+            >
+              <div>
+                <div className="flex items-center gap-1">
+                  <p className="text-[10px] font-bold text-amber-900 uppercase tracking-wider">
+                    Ouro
+                  </p>
+                  <span>👑</span>
+                </div>
+                <h3 className="text-base font-black text-amber-900 mt-0.5">
+                  {clientesOuroCount}
+                </h3>
+                <p className="text-[10px] text-amber-700 font-medium mt-0.5">
+                  {origemFilter === 'ouro' ? 'Filtro ativo' : 'Prioritário'}
+                </p>
+              </div>
+              <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center border border-amber-300 shrink-0 text-xs">
+                👑
+              </div>
+            </div>
+          </div>
 
       {/* Main Table Card */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
@@ -521,16 +984,24 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
         <div className="p-4 lg:p-5 border-b border-slate-100">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-base lg:text-lg font-bold text-slate-900">
-                  Lista de Clientes, Indicações & Agendamentos
+                  Lista de Clientes, Regiões/Rotas & Agendamentos
                 </h2>
-                <span className="text-xs bg-fuchsia-100 text-fuchsia-800 font-bold px-2 py-0.5 rounded-full border border-fuchsia-200">
-                  Indicação Esther & Frotas
-                </span>
+                {filtroRegiao !== 'todas' && (
+                  <span className="text-xs bg-slate-900 text-white font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <span>📍</span> Filtro Rota: {filtroRegiao === 'sem_rota' ? 'Sem Rota' : filtroRegiao}
+                    <button
+                      onClick={() => setFiltroRegiao('todas')}
+                      className="ml-1 hover:text-rose-300 cursor-pointer"
+                    >
+                      ×
+                    </button>
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Acompanhe dados completos de contato, endereço, CEP, opções de materiais, modelo do carro, <strong>Data</strong>, <strong>Horário</strong> e <strong>Interferência</strong> operacional
+                Organização por <strong>Região/Rota</strong> (Zona Norte, Zona Oeste, Baixada Fluminense, Niterói / SG), abas de origem, materiais e dados de entrega.
               </p>
             </div>
 
@@ -556,14 +1027,14 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
           </div>
 
           {/* Filters Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 mt-4 pt-4 border-t border-slate-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 mt-4 pt-3 border-t border-slate-100">
             {/* Search Input */}
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 id="comites-search-filter"
                 type="text"
-                placeholder="Buscar cliente, interferência, data, CEP..."
+                placeholder="Buscar por nome, bairro, CEP, rota..."
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
@@ -581,6 +1052,26 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
               )}
             </div>
 
+            {/* Região / Rota Filter */}
+            <div>
+              <select
+                id="comites-regiao-filter"
+                value={filtroRegiao}
+                onChange={(e) => {
+                  setFiltroRegiao(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-bold focus:outline-hidden focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
+              >
+                <option value="todas">📍 Região/Rota: Todas</option>
+                <option value="Zona Norte">🔵 Zona Norte (Azul) ({clientesZonaNorteCount})</option>
+                <option value="Zona Oeste">🟠 Zona Oeste (Laranja) ({clientesZonaOesteCount})</option>
+                <option value="Baixada Fluminense">🟢 Baixada Fluminense (Verde) ({clientesBaixadaCount})</option>
+                <option value="Niterói / São Gonçalo">🟣 Niterói / São Gonçalo (Roxo) ({clientesNiteroiSGCount})</option>
+                <option value="sem_rota">⚠️ Rota não definida ({clientesSemRotaCount})</option>
+              </select>
+            </div>
+
             {/* Origem / Indicação Filter */}
             <div>
               <select
@@ -593,9 +1084,11 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                 className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-semibold focus:outline-hidden focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
               >
                 <option value="todos">Origem / Indicação: Todas</option>
+                <option value="rosane">🌸 Origem: Rosane</option>
                 <option value="esther">⭐ Indicação: Esther</option>
-                <option value="CRM">💼 Origem: CRM</option>
                 <option value="Instagram">📸 Origem: Instagram</option>
+                <option value="descricao">📝 Origem: Descrição</option>
+                <option value="CRM">💼 Origem: CRM</option>
                 <option value="prata">🥈 Origem: Prata</option>
                 <option value="ouro">👑 Origem: Ouro</option>
               </select>
@@ -649,6 +1142,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
               <tr>
                 <th className="py-3 px-3 w-8 text-center">#</th>
                 <th className="py-3 px-4">Cliente / Indicação</th>
+                <th className="py-3 px-3">Região / Rota</th>
                 <th className="py-3 px-4">Data & Horário</th>
                 <th className="py-3 px-4">Interferência</th>
                 <th className="py-3 px-4">Contato</th>
@@ -661,7 +1155,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
             <tbody className="divide-y divide-slate-100">
               {paginatedComites.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
+                  <td colSpan={10} className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center">
                       <Building2 className="w-10 h-10 text-slate-300 mb-2" />
                       <p className="font-semibold text-slate-600">
@@ -672,7 +1166,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                       </p>
                       <button
                         onClick={handleOpenNewModal}
-                        className="mt-3 px-3 py-1.5 rounded-lg bg-[#E05328] text-white text-xs font-bold"
+                        className="mt-3 px-3 py-1.5 rounded-lg bg-[#E05328] text-white text-xs font-bold cursor-pointer"
                       >
                         + Cadastrar Cliente
                       </button>
@@ -684,6 +1178,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                   const statusStyle = getStatusBadgeClass(comite.status);
                   const isDeleteConfirm = deleteConfirmId === comite.id;
                   const comiteMateriais = comite.materiais || ['perfurado'];
+                  const regiaoCfg = getRegiaoRotaConfig(comite.regiaoRota);
 
                   return (
                     <tr
@@ -722,6 +1217,35 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                             )}
                           </div>
                         </div>
+                      </td>
+
+                      {/* Região / Rota */}
+                      <td className="py-3 px-3">
+                        {comite.regiaoRota ? (
+                          <button
+                            onClick={() => {
+                              setFiltroRegiao(comite.regiaoRota!);
+                              setCurrentPage(1);
+                            }}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-all cursor-pointer ${regiaoCfg.badgeClass} hover:shadow-xs`}
+                            title={`Filtrar apenas ${comite.regiaoRota}`}
+                          >
+                            <span>{regiaoCfg.icone}</span>
+                            <span className="truncate">{comite.regiaoRota}</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setFiltroRegiao('sem_rota');
+                              setCurrentPage(1);
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition-colors cursor-pointer"
+                            title="Rota não definida. Clique para filtrar e corrigir"
+                          >
+                            <AlertTriangle className="w-3 h-3 text-amber-600" />
+                            <span>Rota não definida</span>
+                          </button>
+                        )}
                       </td>
 
                       {/* Data & Horário */}
@@ -867,6 +1391,17 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                         ) : (
                           <div className="flex items-center justify-end gap-1">
                             <button
+                              onClick={() => {
+                                setClienteParaRotaId(comite.id);
+                                setSecaoAtiva('criacao_rotas');
+                              }}
+                              className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                              title="Criar Rota de Entrega para este cliente (4 Regiões)"
+                            >
+                              <Navigation className="w-4 h-4" />
+                            </button>
+
+                            <button
                               onClick={() => onRequestDeliveryForComite(comite)}
                               className="p-1.5 rounded-lg text-[#E05328] hover:bg-orange-50 transition-colors cursor-pointer"
                               title="Solicitar Nova Entrega para este cliente"
@@ -967,394 +1502,576 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
           </div>
         </div>
       </div>
+    </>
+  )}
 
-      {/* Modal: Novo / Editar Cliente */}
+      {/* Modal: Novo / Editar Cliente - Reduzido e com Abas */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-2xl border border-slate-200 relative my-8 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-4 sm:p-5 shadow-2xl border border-slate-200 relative my-auto animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-orange-50 text-[#E05328] flex items-center justify-center font-bold">
-                  <Building2 className="w-5 h-5" />
+                <div className="w-8 h-8 rounded-xl bg-orange-50 text-[#E05328] flex items-center justify-center font-bold">
+                  <Building2 className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">
+                  <h3 className="text-sm font-bold text-slate-900 leading-tight">
                     {editingComite ? 'Editar Dados do Cliente' : 'Cadastrar Novo Cliente'}
                   </h3>
-                  <p className="text-xs text-slate-500">
-                    Preencha as informações do cliente, indicação (Esther / Origem), agendamento e interferências operacionais
+                  <p className="text-[11px] text-slate-500">
+                    Selecione a aba desejada ou siga o passo a passo
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmitForm} className="space-y-4 mt-4 text-xs">
-              {/* Seção: Origem do Cliente / Indicações */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Origem do Cliente / Indicação *
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                  {OPCOES_ORIGEM.map((origem) => {
-                    const isSelected = formData.origemCliente === origem.id;
-                    return (
-                      <button
-                        key={origem.id}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, origemCliente: origem.id })}
-                        className={`p-2.5 rounded-xl border text-left flex items-center gap-2 transition-all cursor-pointer ${
-                          isSelected
-                            ? origem.id === 'esther'
-                              ? 'border-fuchsia-500 bg-fuchsia-50 ring-2 ring-fuchsia-400/40 font-bold'
-                              : 'border-[#E05328] bg-orange-50/50 ring-2 ring-[#E05328]/30 font-bold'
-                            : 'border-slate-200 bg-slate-50 hover:bg-white hover:border-slate-300'
-                        }`}
-                      >
-                        <span className="text-lg">{origem.icon}</span>
+            {/* Modal Internal Tabs Bar */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl my-3 shrink-0 overflow-x-auto no-scrollbar">
+              <button
+                type="button"
+                onClick={() => setModalTab('origem')}
+                className={`flex-1 min-w-[100px] py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  modalTab === 'origem'
+                    ? 'bg-white text-[#E05328] shadow-xs ring-1 ring-slate-200'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>🌸</span>
+                <span>Rosane / Origem</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setModalTab('agendamento')}
+                className={`flex-1 min-w-[100px] py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  modalTab === 'agendamento'
+                    ? 'bg-white text-[#E05328] shadow-xs ring-1 ring-slate-200'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>📍</span>
+                <span>Agendamento</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setModalTab('materiais')}
+                className={`flex-1 min-w-[100px] py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  modalTab === 'materiais'
+                    ? 'bg-white text-[#E05328] shadow-xs ring-1 ring-slate-200'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>📦</span>
+                <span>Materiais</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setModalTab('descricao')}
+                className={`flex-1 min-w-[100px] py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  modalTab === 'descricao'
+                    ? 'bg-white text-[#E05328] shadow-xs ring-1 ring-slate-200'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>📝</span>
+                <span>Descrição</span>
+              </button>
+            </div>
+
+            {/* Form & Tab Content */}
+            <form onSubmit={handleSubmitForm} className="flex flex-col flex-1 overflow-hidden">
+              <div className="flex-1 overflow-y-auto pr-1 space-y-3.5 text-xs py-1">
+                {/* ABA 1: Rosane & Origem / Dados Básicos */}
+                {modalTab === 'origem' && (
+                  <div className="space-y-3 animate-in fade-in duration-100">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1.5">
+                        Canal / Indicação de Origem *
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                        {OPCOES_ORIGEM.map((origem) => {
+                          const isSelected = formData.origemCliente === origem.id;
+                          return (
+                            <button
+                              key={origem.id}
+                              type="button"
+                              onClick={() => setFormData({ ...formData, origemCliente: origem.id })}
+                              className={`p-2 rounded-xl border text-left flex items-center gap-2 transition-all cursor-pointer ${
+                                isSelected
+                                  ? `${origem.colorClass} ring-2 ring-[#E05328]/30 font-black shadow-xs`
+                                  : 'border-slate-200 bg-slate-50/70 hover:bg-white hover:border-slate-300'
+                              }`}
+                            >
+                              <span className="text-base">{origem.icon}</span>
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold truncate">
+                                  {origem.label}
+                                </p>
+                                <p className="text-[9px] opacity-75 truncate">
+                                  {origem.sublabel}
+                                </p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Nome do Cliente / Comitê *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Ex: Comitê Central Pinheiros"
+                          value={formData.nome}
+                          onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Nome do Candidato *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Ex: Roberto Alencar"
+                          value={formData.candidato}
+                          onChange={(e) => setFormData({ ...formData, candidato: e.target.value })}
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Telefone / WhatsApp *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="(11) 98765-4321"
+                          value={formData.telefone}
+                          onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white font-semibold focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Nome do Responsável
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ex: Marcos Vinicius"
+                          value={formData.responsavel}
+                          onChange={(e) => setFormData({ ...formData, responsavel: e.target.value })}
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        E-mail do Cliente
+                      </label>
+                      <input
+                        type="email"
+                        placeholder="cliente@campanha.com.br"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* ABA 2: Agendamento & Endereço */}
+                {modalTab === 'agendamento' && (
+                  <div className="space-y-3 animate-in fade-in duration-100">
+                    <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2.5">
+                      <p className="text-[11px] font-bold text-slate-800 flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-[#E05328]" />
+                        <span>Data, Horário e Restrições</span>
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <div>
-                          <p className={`text-xs ${
-                            isSelected 
-                              ? origem.id === 'esther' ? 'text-fuchsia-900 font-bold' : 'text-[#E05328] font-bold' 
-                              : 'text-slate-800 font-semibold'
-                          }`}>
-                            {origem.label}
-                          </p>
-                          <p className="text-[10px] text-slate-400 font-normal">
-                            {origem.sublabel}
-                          </p>
+                          <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                            Data do Agendamento *
+                          </label>
+                          <input
+                            type="date"
+                            required
+                            value={formData.data}
+                            onChange={(e) => setFormData({ ...formData, data: e.target.value })}
+                            className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white font-semibold focus:ring-2 focus:ring-[#E05328]/30"
+                          />
                         </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
 
-              {/* Seção: Data, Horário e Interferência */}
-              <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200 space-y-3">
-                <div className="flex items-center gap-1.5 text-slate-900 font-bold text-xs">
-                  <Calendar className="w-4 h-4 text-[#E05328]" />
-                  <span>Data, Horário & Interferências Operacionais</span>
-                </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                            Horário Previsto *
+                          </label>
+                          <input
+                            type="time"
+                            required
+                            value={formData.horario}
+                            onChange={(e) => setFormData({ ...formData, horario: e.target.value })}
+                            className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white font-semibold focus:ring-2 focus:ring-[#E05328]/30"
+                          />
+                        </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-slate-500" />
-                      <span>Data do Agendamento *</span>
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={formData.data}
-                      onChange={(e) => setFormData({ ...formData, data: e.target.value })}
-                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white font-semibold focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
-                    />
-                  </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                            Interferência
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Ex: Trânsito, feira..."
+                            value={formData.interferencia}
+                            onChange={(e) => setFormData({ ...formData, interferencia: e.target.value })}
+                            className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-[#E05328]/30"
+                          />
+                        </div>
+                      </div>
+                    </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-slate-500" />
-                      <span>Horário Previsto *</span>
-                    </label>
-                    <input
-                      type="time"
-                      required
-                      value={formData.horario}
-                      onChange={(e) => setFormData({ ...formData, horario: e.target.value })}
-                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white font-semibold focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
-                    />
-                  </div>
+                    <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2">
+                      <p className="text-[11px] font-bold text-slate-800 flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-[#E05328]" />
+                        <span>Local de Entrega / Endereço</span>
+                      </p>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3 text-amber-600" />
-                      <span>Interferência Operacional</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Trânsito, feira livre, restrição portaria..."
-                      value={formData.interferencia}
-                      onChange={(e) => setFormData({ ...formData, interferencia: e.target.value })}
-                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
-                    />
-                  </div>
-                </div>
-              </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div className="sm:col-span-2">
+                          <label className="block text-[10px] font-semibold text-slate-600 mb-1">
+                            Logradouro & Número / Complemento *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="Ex: Av. Brigadeiro Faria Lima, 1800"
+                            value={formData.endereco}
+                            onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
+                            className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-[#E05328]/30"
+                          />
+                        </div>
 
-              {/* Nome do Cliente & Candidato */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Nome do Cliente / Comitê *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ex: Comitê Central Pinheiros"
-                    value={formData.nome}
-                    onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
-                  />
-                </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-600 mb-1">
+                            CEP *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="01451-000"
+                            value={formData.cep}
+                            onChange={(e) => setFormData({ ...formData, cep: e.target.value })}
+                            className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white font-mono font-semibold focus:ring-2 focus:ring-[#E05328]/30"
+                          />
+                        </div>
+                      </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Nome do Candidato *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ex: Roberto Alencar"
-                    value={formData.candidato}
-                    onChange={(e) => setFormData({ ...formData, candidato: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
-                  />
-                </div>
-              </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-600 mb-1">
+                            Bairro
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Ex: Tijuca / Barra da Tijuca"
+                            value={formData.bairro}
+                            onChange={(e) => setFormData({ ...formData, bairro: e.target.value })}
+                            className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-[#E05328]/30"
+                          />
+                        </div>
 
-              {/* Telefone, E-mail & Responsável */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Telefone / WhatsApp *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="(11) 98765-4321"
-                    value={formData.telefone}
-                    onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white font-semibold focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
-                  />
-                </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-600 mb-1">
+                            Cidade
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Rio de Janeiro"
+                            value={formData.cidade}
+                            onChange={(e) => setFormData({ ...formData, cidade: e.target.value })}
+                            className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-[#E05328]/30"
+                          />
+                        </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Nome do Responsável
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: Marcos Vinicius"
-                    value={formData.responsavel}
-                    onChange={(e) => setFormData({ ...formData, responsavel: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
-                  />
-                </div>
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-600 mb-1">
+                            UF
+                          </label>
+                          <input
+                            type="text"
+                            maxLength={2}
+                            placeholder="RJ"
+                            value={formData.uf}
+                            onChange={(e) => setFormData({ ...formData, uf: e.target.value.toUpperCase() })}
+                            className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white uppercase font-bold focus:ring-2 focus:ring-[#E05328]/30"
+                          />
+                        </div>
+                      </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    E-mail do Cliente
-                  </label>
-                  <input
-                    type="email"
-                    placeholder="cliente@campanha.com.br"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
-                  />
-                </div>
-              </div>
+                      {/* Campo Obrigatório: Região / Rota */}
+                      <div className="pt-2 border-t border-slate-200/80">
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+                            <Navigation className="w-3.5 h-3.5 text-[#E05328]" />
+                            <span>Região / Rota Principal *</span>
+                          </label>
+                          <span className="text-[10px] font-bold text-[#E05328] uppercase tracking-wider">
+                            Obrigatório
+                          </span>
+                        </div>
 
-              {/* Endereço Completo & CEP */}
-              <div className="bg-slate-50/70 p-3 rounded-xl border border-slate-200 space-y-2.5">
-                <div className="flex items-center gap-1.5 text-slate-800 font-bold text-xs">
-                  <MapPin className="w-3.5 h-3.5 text-[#E05328]" />
-                  <span>Endereço Completo & CEP</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  <div className="sm:col-span-2">
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      Logradouro & Número / Complemento *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ex: Av. Brigadeiro Faria Lima, 1800 - Conj. 402"
-                      value={formData.endereco}
-                      onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
-                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      CEP *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="01451-000"
-                      value={formData.cep}
-                      onChange={(e) => setFormData({ ...formData, cep: e.target.value })}
-                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white font-mono font-semibold focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      Bairro
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Pinheiros"
-                      value={formData.bairro}
-                      onChange={(e) => setFormData({ ...formData, bairro: e.target.value })}
-                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      Cidade
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="São Paulo"
-                      value={formData.cidade}
-                      onChange={(e) => setFormData({ ...formData, cidade: e.target.value })}
-                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                      UF (Estado)
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={2}
-                      placeholder="SP"
-                      value={formData.uf}
-                      onChange={(e) => setFormData({ ...formData, uf: e.target.value.toUpperCase() })}
-                      className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white uppercase font-bold focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Opções de Materiais Solicitados & Modelo do Carro */}
-              <div className="bg-orange-50/40 p-3 rounded-xl border border-orange-100 space-y-3">
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5 text-[#E05328]" />
-                      <span>Opções de Material de Interesse (Marque os aplicáveis):</span>
-                    </label>
-                    <span className="text-[11px] text-[#E05328] font-bold">
-                      {formData.materiais.length} selecionado(s)
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {OPCOES_MATERIAIS.map((mat) => {
-                      const isChecked = formData.materiais.includes(mat.id);
-                      return (
-                        <button
-                          key={mat.id}
-                          type="button"
-                          onClick={() => handleToggleMaterial(mat.id)}
-                          className={`p-2 rounded-xl border text-left flex items-start gap-2 transition-all cursor-pointer ${
-                            isChecked
-                              ? 'bg-white border-[#E05328] ring-2 ring-[#E05328]/30 shadow-xs'
-                              : 'bg-white/80 border-slate-200 hover:border-slate-300 opacity-70'
-                          }`}
+                        <select
+                          id="form-cliente-regiao-rota"
+                          required
+                          value={formData.regiaoRota || ''}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              regiaoRota: e.target.value as RegiaoRota,
+                            })
+                          }
+                          className="w-full px-2.5 py-2 text-xs border-2 border-[#E05328]/40 rounded-xl bg-white font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328] transition-all"
                         >
-                          <div
-                            className={`w-4 h-4 rounded mt-0.5 flex items-center justify-center border transition-all ${
-                              isChecked
-                                ? 'bg-[#E05328] border-[#E05328] text-white'
-                                : 'border-slate-300 bg-white'
-                            }`}
-                          >
-                            {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                          <option value="" disabled>
+                            -- Selecione a Região / Rota Principal (Obrigatório) --
+                          </option>
+                          {OPCOES_REGIAO_ROTA.map((opcao) => (
+                            <option key={opcao.id} value={opcao.id}>
+                              {opcao.icon} {opcao.label} — {opcao.descricao}
+                            </option>
+                          ))}
+                        </select>
+
+                        {/* Banner de Sugestão Automática por CEP/Bairro */}
+                        {sugestaoRegiao && (
+                          <div className="mt-2 p-2.5 rounded-xl bg-blue-50/80 border border-blue-200 flex items-center justify-between gap-2 text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="text-base shrink-0">✨</span>
+                              <div>
+                                <p className="font-bold text-blue-900 leading-tight">
+                                  Sugestão inteligente identificada:{' '}
+                                  <span className="underline">{sugestaoRegiao.regiao}</span>
+                                </p>
+                                <p className="text-[10px] text-blue-700">
+                                  {sugestaoRegiao.motivo}
+                                </p>
+                              </div>
+                            </div>
+                            {formData.regiaoRota !== sugestaoRegiao.regiao && (
+                              <button
+                                type="button"
+                                onClick={handleAplicarSugestaoRegiao}
+                                className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shrink-0 cursor-pointer shadow-2xs"
+                              >
+                                Aplicar {sugestaoRegiao.regiao.split(' ')[0]}
+                              </button>
+                            )}
                           </div>
-                          <div>
-                            <p className="text-xs font-bold text-slate-800 flex items-center gap-1">
-                              <span>{mat.icon}</span>
-                              <span>{mat.label}</span>
-                            </p>
-                            <p className="text-[10px] text-slate-500">
-                              {mat.sublabel}
-                            </p>
+                        )}
+
+                        {/* Alerta de Divergência se selecionou rota divergente do CEP */}
+                        {divergenciaCepAviso && (
+                          <div className="mt-2 p-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-[11px] flex items-start gap-2">
+                            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                            <div>
+                              <strong>Atenção:</strong> {divergenciaCepAviso}
+                            </div>
                           </div>
-                        </button>
-                      );
-                    })}
+                        )}
+
+                        {/* Preview da Região Selecionada */}
+                        {formData.regiaoRota && (
+                          <div className="mt-2 flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                            {(() => {
+                              const cfg = getRegiaoRotaConfig(formData.regiaoRota);
+                              return (
+                                <>
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-black border ${cfg.badgeClass}`}>
+                                    <span>{cfg.icone}</span>
+                                    <span>{formData.regiaoRota}</span>
+                                  </span>
+                                  <span className="text-[11px] text-slate-500 truncate">
+                                    {cfg.descricao}
+                                  </span>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
+                )}
+
+                {/* ABA 3: Materiais & Modelo do Carro */}
+                {modalTab === 'materiais' && (
+                  <div className="space-y-3 animate-in fade-in duration-100">
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-[11px] font-bold text-slate-800 flex items-center gap-1">
+                          <Layers className="w-3.5 h-3.5 text-[#E05328]" />
+                          <span>Materiais de Interesse:</span>
+                        </label>
+                        <span className="text-[10px] text-[#E05328] font-bold">
+                          {formData.materiais.length} selecionado(s)
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                        {OPCOES_MATERIAIS.map((mat) => {
+                          const isChecked = formData.materiais.includes(mat.id);
+                          return (
+                            <button
+                              key={mat.id}
+                              type="button"
+                              onClick={() => handleToggleMaterial(mat.id)}
+                              className={`p-2 rounded-xl border text-left flex items-start gap-1.5 transition-all cursor-pointer ${
+                                isChecked
+                                  ? 'bg-orange-50/50 border-[#E05328] ring-1 ring-[#E05328] shadow-2xs'
+                                  : 'bg-white border-slate-200 hover:border-slate-300 opacity-80'
+                              }`}
+                            >
+                              <div
+                                className={`w-3.5 h-3.5 rounded mt-0.5 flex items-center justify-center border shrink-0 transition-all ${
+                                  isChecked
+                                    ? 'bg-[#E05328] border-[#E05328] text-white'
+                                    : 'border-slate-300 bg-white'
+                                }`}
+                              >
+                                {isChecked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-[11px] font-bold text-slate-800 truncate">
+                                  {mat.icon} {mat.label}
+                                </p>
+                                <p className="text-[9px] text-slate-400 truncate">
+                                  {mat.sublabel}
+                                </p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                      <label className="block text-[11px] font-bold text-slate-800 mb-1 flex items-center gap-1">
+                        <Car className="w-3.5 h-3.5 text-[#E05328]" />
+                        <span>Modelo do Carro (para aplicação de perfurados)</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Fiat Strada Endurance 2024 / Hilux / Gol G8"
+                        value={formData.modeloCarro}
+                        onChange={(e) => setFormData({ ...formData, modeloCarro: e.target.value })}
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-[#E05328]/30 font-medium"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* ABA 4: Descrição & Status */}
+                {modalTab === 'descricao' && (
+                  <div className="space-y-3 animate-in fade-in duration-100">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Status de Atendimento
+                      </label>
+                      <select
+                        value={formData.status}
+                        onChange={(e) =>
+                          setFormData({ ...formData, status: e.target.value as StatusComite })
+                        }
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white font-semibold focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
+                      >
+                        <option value="ativo">Ativo (Rotas e Despachos Liberados)</option>
+                        <option value="pendente">Pendente (Aguardando Aprovação)</option>
+                        <option value="inativo">Inativo (Bloqueado)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Aba Descrição & Observações Operacionais
+                      </label>
+                      <textarea
+                        rows={4}
+                        placeholder="Insira a descrição detalhada do pedido, restrições de entrega, referências de rota ou instruções para a equipe..."
+                        value={formData.observacoes}
+                        onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
+                        className="w-full px-2.5 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons & Tab Navigation */}
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100 shrink-0 mt-2">
+                <div className="flex items-center gap-1.5">
+                  {modalTab !== 'origem' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (modalTab === 'descricao') setModalTab('materiais');
+                        else if (modalTab === 'materiais') setModalTab('agendamento');
+                        else if (modalTab === 'agendamento') setModalTab('origem');
+                      }}
+                      className="px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                    >
+                      ← Voltar
+                    </button>
+                  )}
+                  {modalTab !== 'descricao' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (modalTab === 'origem') setModalTab('agendamento');
+                        else if (modalTab === 'agendamento') setModalTab('materiais');
+                        else if (modalTab === 'materiais') setModalTab('descricao');
+                      }}
+                      className="px-2.5 py-1.5 text-xs font-semibold text-[#E05328] hover:bg-orange-50 rounded-xl transition-colors cursor-pointer"
+                    >
+                      Avançar →
+                    </button>
+                  )}
                 </div>
 
-                {/* Modelo do Carro */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1 flex items-center gap-1">
-                    <Car className="w-3.5 h-3.5 text-[#E05328]" />
-                    <span>Modelo do Carro (para aplicação de perfurados / adesivos)</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: Fiat Strada Endurance 2024 / Hilux / Gol G8 / Corolla"
-                    value={formData.modeloCarro}
-                    onChange={(e) => setFormData({ ...formData, modeloCarro: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328] font-medium"
-                  />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 text-xs font-bold text-white bg-[#E05328] hover:bg-orange-700 rounded-xl shadow-xs transition-all cursor-pointer"
+                  >
+                    {editingComite ? 'Salvar Alterações' : 'Confirmar Cadastro'}
+                  </button>
                 </div>
-              </div>
-
-              {/* Status de Atendimento */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Status de Atendimento
-                </label>
-                <select
-                  value={formData.status}
-                  onChange={(e) =>
-                    setFormData({ ...formData, status: e.target.value as StatusComite })
-                  }
-                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white font-semibold focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
-                >
-                  <option value="ativo">Ativo (Rotas Liberadas)</option>
-                  <option value="pendente">Pendente (Aguardando Aprovação)</option>
-                  <option value="inativo">Inativo (Bloqueado)</option>
-                </select>
-              </div>
-
-              {/* Observações */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Observações & Instruções de Despacho
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Ex: Horário de recebimento, lote lacrado para perfurados, conferência com responsável..."
-                  value={formData.observacoes}
-                  onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
-                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
-                />
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 text-xs font-bold text-white bg-[#E05328] hover:bg-orange-700 rounded-xl shadow-sm transition-all cursor-pointer"
-                >
-                  {editingComite ? 'Salvar Alterações' : 'Confirmar Cadastro'}
-                </button>
               </div>
             </form>
           </div>
@@ -1382,9 +2099,9 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
               </div>
 
               <div className="mt-4 space-y-4 text-xs">
-                {/* Header info with Origin */}
+                {/* Header info with Origin & Região/Rota */}
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-1">
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-orange-100 text-[#E05328] border border-orange-200">
                       Cliente Ativo
                     </span>
@@ -1398,6 +2115,49 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                       Candidato / Titular: <strong>{selectedComiteDetails.candidato}</strong>
                     </p>
                   )}
+
+                  {/* Região / Rota Badge */}
+                  <div className="mt-3 pt-3 border-t border-slate-200/80 flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        Região / Rota Principal
+                      </p>
+                      {selectedComiteDetails.regiaoRota ? (
+                        (() => {
+                          const cfg = getRegiaoRotaConfig(selectedComiteDetails.regiaoRota);
+                          return (
+                            <div className="mt-1">
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-black border ${cfg.badgeClass}`}>
+                                <span>{cfg.icone}</span>
+                                <span>{selectedComiteDetails.regiaoRota}</span>
+                              </span>
+                              <p className="text-[10px] text-slate-500 mt-1">
+                                {cfg.descricao}
+                              </p>
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300 mt-1">
+                          <AlertTriangle className="w-3 h-3 text-amber-600" />
+                          Rota não definida
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setClienteParaRotaId(selectedComiteDetails.id);
+                        setSecaoAtiva('criacao_rotas');
+                        setSelectedComiteDetails(null);
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Abrir módulo Criação de Rotas"
+                    >
+                      <Navigation className="w-3.5 h-3.5" />
+                      <span>Ver Rota</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Data, Horário e Interferência */}

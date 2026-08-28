@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Material, EstoqueSaldo } from '../../types';
 import { formatDate } from '../../utils/formatters';
+import { printElementById } from '../../utils/printHelper';
 
 interface ModalEtiquetaMaterialProps {
   isOpen: boolean;
@@ -34,7 +35,10 @@ export const ModalEtiquetaMaterial: React.FC<ModalEtiquetaMaterialProps> = ({
   if (!isOpen || !material) return null;
 
   const handlePrint = () => {
-    window.print();
+    printElementById('area-impressao-etiqueta', {
+      pageFormat: 'termica',
+      title: `Etiqueta_${material.sku}`
+    });
   };
 
   const handleCopyBarcode = () => {
@@ -111,8 +115,8 @@ export const ModalEtiquetaMaterial: React.FC<ModalEtiquetaMaterialProps> = ({
 
           {/* Printable Label container */}
           <div
-            id="printable-material-label"
-            className="w-full max-w-md bg-white border-2 border-dashed border-slate-400 rounded-xl p-5 shadow-lg space-y-4 text-slate-900"
+            id="area-impressao-etiqueta"
+            className="w-full max-w-md bg-white border-2 border-dashed border-slate-400 rounded-xl p-5 shadow-lg space-y-4 text-slate-900 printable-area"
           >
             {/* Header Brand */}
             <div className="flex items-center justify-between border-b-2 border-slate-900 pb-2">

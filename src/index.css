@@ -1,1 +1,92 @@
 @import "tailwindcss";
+
+@media print {
+  /* Ocultar elementos estruturais da aplicação */
+  nav,
+  aside,
+  header,
+  #sidebar,
+  .print-hidden,
+  .no-print,
+  button:not(.force-print),
+  input,
+  select,
+  textarea {
+    display: none !important;
+  }
+
+  /* Reset de backdrops de modals para que o conteúdo fique limpo */
+  .fixed.inset-0,
+  div[class*="backdrop-blur"],
+  div[class*="bg-slate-900/60"],
+  div[class*="bg-slate-950/60"],
+  div[class*="bg-black/60"] {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Isolamento limpo quando imprimindo um elemento específico via print mount point */
+  body.is-printing-specific-target {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body.is-printing-specific-target > *:not(#fleetmoto-print-mount-point) {
+    display: none !important;
+  }
+
+  body.is-printing-specific-target #fleetmoto-print-mount-point,
+  body.is-printing-specific-target #fleetmoto-print-mount-point * {
+    visibility: visible !important;
+  }
+
+  body.is-printing-specific-target #fleetmoto-print-mount-point {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    z-index: 999999 !important;
+  }
+
+  #fleetmoto-print-mount-point button,
+  #fleetmoto-print-mount-point input,
+  #fleetmoto-print-mount-point select,
+  #fleetmoto-print-mount-point .no-print,
+  #fleetmoto-print-mount-point .print-hidden {
+    display: none !important;
+  }
+
+  /* Exibir áreas marcadas com printable */
+  .printable-area,
+  .printable-document {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+
+  @page {
+    margin: 10mm;
+    size: auto;
+  }
+}
+

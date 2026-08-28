@@ -13,7 +13,13 @@ export type CargoEleitoral =
   | 'Vereador'
   | 'Vereadora';
 
-export type OrigemCliente = 'CRM' | 'Instagram' | 'prata' | 'ouro' | 'esther';
+export type OrigemCliente = 'CRM' | 'Instagram' | 'prata' | 'ouro' | 'esther' | 'rosane' | 'descricao';
+
+export type RegiaoRota = 
+  | 'Zona Norte' 
+  | 'Zona Oeste' 
+  | 'Baixada Fluminense' 
+  | 'Niterói / São Gonçalo';
 
 export interface Comite {
   id: string;
@@ -33,6 +39,7 @@ export interface Comite {
   cidade: string;
   uf: string;
   cep: string;
+  regiaoRota?: RegiaoRota;
   zonaEleitoral?: string;
   secoesAtendidas?: string;
   valorBaseRota?: number;
@@ -100,6 +107,8 @@ export interface Moto {
   proximaRevisaoKm: number;
   kmAtual: number;
 }
+
+export type Veiculo = Moto;
 
 export type StatusPedido = 
   | 'rascunho'
@@ -221,6 +230,14 @@ export type StatusEntrega =
 
 export type PrioridadeEntrega = 'urgente_comicio' | 'alta' | 'normal';
 
+export interface ItemComprovantePOD {
+  materialNome: string;
+  quantidade: number;
+  unidadeMedida: string;
+  sku?: string;
+  pesoKg?: number;
+}
+
 export interface ComprovantePOD {
   fotoUrl: string;
   assinaturaBase64: string;
@@ -229,7 +246,19 @@ export interface ComprovantePOD {
   telefoneRecebedor?: string;
   dataHora: string;
   localizacaoGps: string;
+  gpsLatitude?: number;
+  gpsLongitude?: number;
+  gpsPrecisaoMetros?: number;
+  hashSha256?: string;
+  codigoAutenticidade?: string;
+  motoboyId?: string;
+  motoboyNome?: string;
+  motoboyPlaca?: string;
+  enderecoCompleto?: string;
+  itensEntregues?: ItemComprovantePOD[];
   notas?: string;
+  offlineSync?: boolean;
+  sincronizadoEm?: string;
 }
 
 export interface Entrega {
@@ -266,6 +295,8 @@ export interface Entrega {
   itens?: ItemPedido[];
   comprovantePOD?: ComprovantePOD;
   observacoes?: string;
+  expedicaoId?: string;
+  rotaId?: string;
 }
 
 export interface RegistroAdesivagem {
@@ -822,5 +853,221 @@ export interface Inventario {
   observacoes?: string;
   criadoEm?: string;
   atualizadoEm?: string;
+}
+
+// ----------------------------------------------------
+// CENTRAL DE RELATÓRIOS (20 MODELOS & ESTRUTURA COMPLETA)
+// ----------------------------------------------------
+
+export type TipoModeloRelatorio =
+  | 'geral_pedidos'                     // 1. Relatório geral de pedidos
+  | 'pedidos_cliente'                   // 2. Pedidos por cliente
+  | 'pedidos_periodo'                   // 3. Pedidos por período
+  | 'materiais_solicitados'             // 4. Materiais solicitados
+  | 'materiais_separados'               // 5. Materiais separados
+  | 'materiais_liberados'               // 6. Materiais liberados pela expedição
+  | 'pedidos_pendentes_atrasados'       // 7. Pedidos pendentes e atrasados
+  | 'entregas_realizadas'               // 8. Entregas realizadas
+  | 'entregas_pendentes_canceladas'     // 9. Entregas pendentes, canceladas ou devolvidas
+  | 'rotas_horarios'                    // 10. Rotas e horários de saída e chegada
+  | 'desempenho_motoboys'               // 11. Desempenho dos motoboys
+  | 'estoque_atual'                     // 12. Estoque atual
+  | 'entradas_saidas_estoque'           // 13. Entradas e saídas do estoque
+  | 'produtos_estoque_baixo'            // 14. Produtos com estoque baixo
+  | 'produtos_sem_estoque'              // 15. Produtos sem estoque
+  | 'inventario_materiais'              // 16. Inventário de materiais
+  | 'custos_operacionais'               // 17. Custos operacionais
+  | 'pagamentos_remuneracoes'           // 18. Pagamentos e remunerações
+  | 'usuario_equipe_setor'              // 19. Relatório por usuário, equipe ou setor
+  | 'historico_alteracoes';             // 20. Histórico completo de alterações e movimentações
+
+export interface ModeloRelatorioConfig {
+  id: TipoModeloRelatorio;
+  numero: number;
+  titulo: string;
+  descricao: string;
+  categoria: 'pedidos' | 'materiais' | 'entregas' | 'estoque' | 'financeiro' | 'auditoria';
+  icone: string;
+}
+
+export interface FiltrosRelatorioCentral {
+  tipoPeriodo: 'hoje' | 'ontem' | 'semana' | 'mes' | 'personalizado';
+  dataInicio?: string;
+  dataFim?: string;
+  numeroPedido?: string;
+  clienteId?: string;
+  materialId?: string;
+  categoriaMaterial?: string;
+  setor?: string;
+  responsavelId?: string;
+  motoboyId?: string;
+  equipe?: string;
+  regiao?: string;
+  statusPedido?: string;
+  formaPagamento?: string;
+  statusPagamento?: string;
+  origemCliente?: string;
+}
+
+export interface ItemRelatorioCentral {
+  id: string;
+  dataHora: string;
+  dataHoraFormatada?: string;
+  numeroPedido?: string;
+  clienteNome?: string;
+  materialNome?: string;
+  quantidade?: number;
+  unidadeMedida?: string;
+  responsavelNome?: string;
+  setor?: string;
+  motoboyNome?: string;
+  rotaNome?: string;
+  status?: string;
+  statusLabel?: string;
+  valor?: number;
+  custo?: number;
+  observacoes?: string;
+  registroOriginal?: any;
+  tipoRegistro: 'pedido' | 'entrega' | 'estoque' | 'movimentacao' | 'financeiro' | 'usuario' | 'auditoria' | 'expedicao' | 'inventario';
+}
+
+export interface ModeloRelatorioSalvo {
+  id: string;
+  nome: string;
+  descricao?: string;
+  tipoModelo: TipoModeloRelatorio;
+  filtros: FiltrosRelatorioCentral;
+  colunasVisiveis: string[];
+  criadoPorId: string;
+  criadoPorNome: string;
+  criadoEm?: string;
+}
+
+export interface RelatorioHistoricoItem {
+  id: string;
+  titulo: string;
+  tipoModelo: string;
+  formato: 'pdf' | 'excel' | 'csv' | 'impressao' | 'compartilhamento';
+  filtrosAplicados: Record<string, any>;
+  totalRegistros: number;
+  usuarioId: string;
+  usuarioNome: string;
+  usuarioPapel?: string;
+  ipOuDispositivo?: string;
+  identificadorUnico: string;
+  criadoEm?: string;
+}
+
+// ==========================================
+// CRIAÇÃO DE ROTAS POR CLIENTE (FLEETMOTO)
+// ==========================================
+
+export type StatusParadaRota =
+  | 'Pendente'
+  | 'Separando material'
+  | 'Aguardando saída'
+  | 'Em rota'
+  | 'Chegou ao local'
+  | 'Entregue'
+  | 'Não entregue'
+  | 'Endereço não localizado'
+  | 'Destinatário ausente'
+  | 'Reagendada'
+  | 'Cancelada';
+
+export type PrioridadeParada = 'normal' | 'alta' | 'urgente';
+
+export interface PontoEntregaRota {
+  id: string;
+  clienteId: string;
+  clienteNome: string;
+  nomeDestinatario: string;
+  telefone: string;
+  enderecoCompleto: string;
+  numeroComplemento: string;
+  bairro: string;
+  municipio: string;
+  cep: string;
+  pontoReferencia?: string;
+  regiao: RegiaoRota;
+  dataEntrega: string;
+  horarioJanelaEntrega: string; // Ex: '08:00 - 12:00 (Manhã)', '13:00 - 17:00 (Tarde)', '14:30'
+  tipoMaterial: string; // Ex: 'Santinhos 7x10', 'Adesivos Perfurados', 'Pragão', 'Bandeiras'
+  quantidadeMaterial: number;
+  unidadeMedida: string; // 'unidades', 'milheiros', 'kits', 'fardos'
+  prioridade: PrioridadeParada;
+  observacoes?: string;
+  ordemSequencia: number;
+  status: StatusParadaRota;
+  latitude?: number;
+  longitude?: number;
+  horaChegada?: string;
+  horaConclusao?: string;
+  motivoInsucesso?: string;
+  comprovantePOD?: ComprovantePOD;
+  fotoSelfieMotoboyUrl?: string;
+}
+
+export type StatusRotaCliente = 
+  | 'planejada' 
+  | 'em_separacao' 
+  | 'aguardando_saida' 
+  | 'em_rota' 
+  | 'concluida' 
+  | 'cancelada';
+
+export interface HistoricoAlteracaoRota {
+  id: string;
+  dataHora: string;
+  usuarioId: string;
+  usuarioNome: string;
+  usuarioRole?: string;
+  acao: 'criacao' | 'edicao' | 'reordenacao' | 'adicao_parada' | 'remocao_parada' | 'inicio_rota' | 'conclusao_rota' | 'duplicacao' | 'alteracao_status';
+  descricao: string;
+  detalhes?: any;
+}
+
+export interface RotaCliente {
+  id: string;
+  codigoRota: string; // Ex: 'ROT-2026-ZN-001'
+  nomeRota: string;
+  clienteId: string;
+  clienteNome: string;
+  candidato?: string;
+  partido?: string;
+  cnpjCampanha?: string;
+  regiaoPredominante: RegiaoRota | 'Múltiplas Regiões';
+  dataRota: string;
+  dataHorarioSaida?: string;
+  dataHorarioRetorno?: string;
+  pontoPartida: string; // Ex: 'CD Central - Av. Brasil, 500, Rio de Janeiro'
+  pontoFinal: string;
+  motoboyId: string;
+  motoboyNome: string;
+  motoboyTelefone?: string;
+  motoboyFotoUrl?: string;
+  veiculoModelo: string;
+  veiculoPlaca: string;
+  regiaoAtendimento: string;
+  limiteEntregasMaximo: number;
+  valorDiaria: number;
+  valorCombustivel: number;
+  valorAdicionalPorEntrega: number;
+  valorTotalPrevisto: number;
+  distanciaTotalKmEstimada: number;
+  tempoEstimadoMinutos: number;
+  previsaoCombustivelLitros: number;
+  quantidadeParadas: number;
+  quantidadeTotalMateriais: number;
+  paradas: PontoEntregaRota[];
+  status: StatusRotaCliente;
+  observacoes?: string;
+  criadoPor: string;
+  criadoPorNome?: string;
+  criadoEm: string;
+  atualizadoEm: string;
+  historicoAlteracoes: HistoricoAlteracaoRota[];
+  isDeleted?: boolean;
+  deletedAt?: string | null;
 }
 

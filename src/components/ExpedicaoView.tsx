@@ -66,6 +66,7 @@ import {
   divergenciasRepo,
   rotasExpedicaoRepo,
 } from '../repositories';
+import { printElementById } from '../utils/printHelper';
 import {
   formatDateTime,
   formatDate,
@@ -617,8 +618,13 @@ export const ExpedicaoView: React.FC<ExpedicaoViewProps> = ({
         { id: currentUser.id, nome: currentUser.nome }
       );
       setIsReimprimirModalOpen(false);
+      setIsNotaPrintModalOpen(true);
       setReimpressaoMotivo('');
-      window.print();
+      setTimeout(() => {
+        printElementById('area-impressao-romaneio', {
+          title: `Romaneio_${selectedExpedicao.notaEntrega?.numeroNota || selectedExpedicao.numeroPedido}`
+        });
+      }, 100);
     } catch (err: any) {
       alert(`Erro ao registrar reimpressão: ${err.message || err}`);
     }
@@ -1884,10 +1890,14 @@ export const ExpedicaoView: React.FC<ExpedicaoViewProps> = ({
                   Reimprimir com Justificativa
                 </button>
                 <button
-                  onClick={() => window.print()}
-                  className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-xs"
+                  id="btn-imprimir-romaneio-agora"
+                  onClick={() => printElementById('area-impressao-romaneio', {
+                    title: `Romaneio_${selectedExpedicao.notaEntrega?.numeroNota || selectedExpedicao.numeroPedido}`
+                  })}
+                  className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-xs cursor-pointer flex items-center gap-1.5"
                 >
-                  Imprimir Agora
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Imprimir Agora</span>
                 </button>
                 <button
                   onClick={() => setIsNotaPrintModalOpen(false)}
@@ -1899,7 +1909,7 @@ export const ExpedicaoView: React.FC<ExpedicaoViewProps> = ({
             </div>
 
             {/* Document Body (Print Friendly Layout) */}
-            <div className="border border-slate-300 p-6 rounded-lg space-y-6 text-slate-800 text-sm">
+            <div id="area-impressao-romaneio" className="border border-slate-300 p-6 rounded-lg space-y-6 text-slate-800 text-sm bg-white printable-area">
               <div className="flex justify-between items-start border-b border-slate-300 pb-4">
                 <div>
                   <h1 className="text-xl font-bold text-slate-900 tracking-tight">FLEETMOTO LOGÍSTICA ELEITORAL</h1>

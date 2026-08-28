@@ -18,6 +18,7 @@ import {
   Copy,
   Send,
   Printer,
+  Download,
   MessageSquare,
   ChevronDown,
   ArrowRight,
@@ -49,6 +50,7 @@ import {
   Entrega,
 } from '../types';
 import { pedidosRepo, clientesRepo, entregasRepo, expedicoesRepo } from '../repositories';
+import { printElementById } from '../utils/printHelper';
 import {
   formatCurrency,
   formatDateTime,
@@ -109,6 +111,12 @@ export const PedidosView: React.FC<PedidosViewProps> = ({
 
   // Selected Existing Client
   const [selectedClientId, setSelectedClientId] = useState('');
+  const [clientSearchQuery, setClientSearchQuery] = useState('');
+  const [isClientSearchDropdownOpen, setIsClientSearchDropdownOpen] = useState(false);
+  const [useLegacyClientSelect, setUseLegacyClientSelect] = useState(false);
+
+  // Main table client search suggestion popup
+  const [isMainSearchDropdownOpen, setIsMainSearchDropdownOpen] = useState(false);
 
   // New Client Fields
   const [newClientNome, setNewClientNome] = useState('');
@@ -199,11 +207,52 @@ export const PedidosView: React.FC<PedidosViewProps> = ({
     return clientes.find(c => c.id === selectedClientId);
   }, [clientes, selectedClientId]);
 
+  // Filter clients for modal search when at least 3 letters are typed
+  const filteredClientsForModal = useMemo(() => {
+    const q = clientSearchQuery.trim().toLowerCase();
+    if (!q || q.length < 3) return [];
+    return clientes.filter(c => {
+      const nomeMatch = c.nome?.toLowerCase().includes(q);
+      const candMatch = c.candidato?.toLowerCase().includes(q);
+      const partidoMatch = c.partido?.toLowerCase().includes(q);
+      const respMatch = c.responsavel?.toLowerCase().includes(q);
+      const telMatch = c.telefone?.toLowerCase().includes(q);
+      const cnpjMatch = c.cnpjCampanha?.toLowerCase().includes(q);
+      const bairroMatch = c.bairro?.toLowerCase().includes(q);
+      const cidadeMatch = c.cidade?.toLowerCase().includes(q);
+      const zonaMatch = c.zonaEleitoral?.toLowerCase().includes(q);
+      return Boolean(nomeMatch || candMatch || partidoMatch || respMatch || telMatch || cnpjMatch || bairroMatch || cidadeMatch || zonaMatch);
+    });
+  }, [clientes, clientSearchQuery]);
+
+  // Main search bar suggestions when at least 3 letters are typed
+  const mainSearchSuggestions = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q || q.length < 3) return { clientes: [], pedidos: [] };
+
+    const matchedClients = clientes.filter(c =>
+      c.nome?.toLowerCase().includes(q) ||
+      c.candidato?.toLowerCase().includes(q) ||
+      c.responsavel?.toLowerCase().includes(q)
+    ).slice(0, 6);
+
+    const matchedPedidos = pedidos.filter(p =>
+      p.numeroPedido?.toLowerCase().includes(q) ||
+      p.codigoRastreio?.toLowerCase().includes(q) ||
+      p.clienteNome?.toLowerCase().includes(q) ||
+      p.candidato?.toLowerCase().includes(q)
+    ).slice(0, 6);
+
+    return { clientes: matchedClients, pedidos: matchedPedidos };
+  }, [clientes, pedidos, searchTerm]);
+
   // Handle client selection and autofill address
   const handleSelectClient = (clientId: string) => {
     setSelectedClientId(clientId);
     const client = clientes.find(c => c.id === clientId);
     if (client) {
+      setClientSearchQuery(client.nome);
+      setIsClientSearchDropdownOpen(false);
       setDeliveryEndereco(client.endereco || '');
       setDeliveryNumero(client.numero || '');
       setDeliveryBairro(client.bairro || '');
@@ -261,10 +310,14 @@ export const PedidosView: React.FC<PedidosViewProps> = ({
   const handleOpenNewOrder = () => {
     setEditingPedido(null);
     setIsNewClientMode(false);
-    setSelectedClientId(clientes[0]?.id || '');
-
+    setUseLegacyClientSelect(false);
+    setIsClientSearchDropdownOpen(false);
+    
+    // Start with empty client so user can type 3 letters to search, or pick first if available
     const firstClient = clientes[0];
     if (firstClient) {
+      setSelectedClientId(firstClient.id);
+      setClientSearchQuery(firstClient.nome);
       setDeliveryEndereco(firstClient.endereco || '');
       setDeliveryNumero(firstClient.numero || '');
       setDeliveryBairro(firstClient.bairro || '');
@@ -272,6 +325,9 @@ export const PedidosView: React.FC<PedidosViewProps> = ({
       setDeliveryZona(firstClient.zonaEleitoral || 'Zona Central');
       setDeliveryRecebedor(firstClient.responsavel || firstClient.candidato || '');
       setDeliveryTelRecebedor(firstClient.telefone || '');
+    } else {
+      setSelectedClientId('');
+      setClientSearchQuery('');
     }
 
     setOrderPrioridade('normal');
@@ -301,7 +357,11 @@ export const PedidosView: React.FC<PedidosViewProps> = ({
   const handleOpenEditOrder = (pedido: Pedido) => {
     setEditingPedido(pedido);
     setIsNewClientMode(false);
+    setUseLegacyClientSelect(false);
     setSelectedClientId(pedido.clienteId);
+    const existingClient = clientes.find(c => c.id === pedido.clienteId);
+    setClientSearchQuery(existingClient?.nome || pedido.clienteNome || '');
+    setIsClientSearchDropdownOpen(false);
 
     setOrderPrioridade(pedido.prioridade || 'normal');
     setOrderModalidade(pedido.modalidade || 'entrega');
@@ -334,7 +394,11 @@ export const PedidosView: React.FC<PedidosViewProps> = ({
   const handleDuplicateOrder = (pedido: Pedido) => {
     setEditingPedido(null);
     setIsNewClientMode(false);
+    setUseLegacyClientSelect(false);
     setSelectedClientId(pedido.clienteId);
+    const existingClient = clientes.find(c => c.id === pedido.clienteId);
+    setClientSearchQuery(existingClient?.nome || pedido.clienteNome || '');
+    setIsClientSearchDropdownOpen(false);
 
     setOrderPrioridade(pedido.prioridade || 'normal');
     setOrderModalidade(pedido.modalidade || 'entrega');
@@ -823,16 +887,117 @@ export const PedidosView: React.FC<PedidosViewProps> = ({
               type="text"
               placeholder="Buscar por nº do pedido, cliente, candidato, CNPJ, rastreio ou material..."
               value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-11 pr-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-[#E05328] transition-all"
+              onChange={e => {
+                const val = e.target.value;
+                setSearchTerm(val);
+                setIsMainSearchDropdownOpen(val.trim().length >= 3);
+              }}
+              onFocus={() => {
+                if (searchTerm.trim().length >= 3) {
+                  setIsMainSearchDropdownOpen(true);
+                }
+              }}
+              className="w-full pl-11 pr-10 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-[#E05328] transition-all"
             />
             {searchTerm && (
               <button
-                onClick={() => setSearchTerm('')}
+                onClick={() => {
+                  setSearchTerm('');
+                  setIsMainSearchDropdownOpen(false);
+                }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
               >
                 <X className="w-4 h-4" />
               </button>
+            )}
+
+            {/* Main Search Autocomplete Suggestions Popup */}
+            {isMainSearchDropdownOpen && searchTerm.trim().length >= 3 && (
+              <div className="absolute z-40 left-0 right-0 top-full mt-1.5 bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden max-h-72 overflow-y-auto divide-y divide-slate-100 animate-in fade-in duration-150">
+                <div className="p-2.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-xs text-slate-600">
+                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <Search className="w-3.5 h-3.5 text-[#E05328]" />
+                    Sugestões para &ldquo;{searchTerm}&rdquo;
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsMainSearchDropdownOpen(false)}
+                    className="p-0.5 text-slate-400 hover:text-slate-700"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {mainSearchSuggestions.clientes.length === 0 && mainSearchSuggestions.pedidos.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-500">
+                    Nenhum cliente ou pedido específico corresponde a &ldquo;{searchTerm}&rdquo;. A tabela filtrará todos os campos.
+                  </div>
+                ) : (
+                  <div>
+                    {mainSearchSuggestions.clientes.length > 0 && (
+                      <div className="p-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 py-1">
+                          Clientes Correspondentes
+                        </p>
+                        {mainSearchSuggestions.clientes.map(c => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => {
+                              setSearchTerm(c.nome);
+                              setIsMainSearchDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs hover:bg-orange-50 rounded-lg flex items-center justify-between group"
+                          >
+                            <div>
+                              <span className="font-bold text-slate-900 group-hover:text-[#E05328]">
+                                {c.nome}
+                              </span>
+                              <span className="text-slate-500 ml-2">
+                                (Candidato: {c.candidato})
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-[#E05328] font-semibold opacity-0 group-hover:opacity-100">
+                              Filtrar pedidos
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {mainSearchSuggestions.pedidos.length > 0 && (
+                      <div className="p-2 border-t border-slate-100">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 py-1">
+                          Pedidos Encontrados
+                        </p>
+                        {mainSearchSuggestions.pedidos.map(p => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                              setSearchTerm(p.numeroPedido);
+                              setIsMainSearchDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs hover:bg-orange-50 rounded-lg flex items-center justify-between group"
+                          >
+                            <div>
+                              <span className="font-mono font-bold text-slate-900 group-hover:text-[#E05328]">
+                                {p.numeroPedido}
+                              </span>
+                              <span className="text-slate-600 ml-2">
+                                {p.clienteNome} • {p.quantidadeTotal} un.
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-[#E05328] font-semibold opacity-0 group-hover:opacity-100">
+                              Ver pedido
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
@@ -1213,38 +1378,244 @@ export const PedidosView: React.FC<PedidosViewProps> = ({
                 </div>
 
                 {!isNewClientMode ? (
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Selecione o Cliente / Candidato *
-                    </label>
-                    <select
-                      value={selectedClientId}
-                      onChange={e => handleSelectClient(e.target.value)}
-                      className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-200 rounded-xl text-slate-900 focus:ring-2 focus:ring-orange-500/20 focus:border-[#E05328]"
-                      required={!isNewClientMode}
-                    >
-                      <option value="">-- Selecione um cliente da lista --</option>
-                      {clientes.map(c => (
-                        <option key={c.id} value={c.id}>
-                          {c.nome} — {c.candidato} ({c.partido || 'S/P'}) | {c.telefone}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-slate-800">
+                        Buscar Cliente Cadastrado (digite ao menos 3 letras) *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setUseLegacyClientSelect(prev => !prev)}
+                        className="text-[11px] font-semibold text-[#E05328] hover:underline transition-colors"
+                      >
+                        {useLegacyClientSelect ? 'Usar busca preditiva' : 'Ver lista suspensa completa'}
+                      </button>
+                    </div>
 
-                    {currentClientObj && (
-                      <div className="mt-3 p-3 bg-white rounded-xl border border-slate-200 text-xs grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-600">
-                        <div>
-                          <span className="font-semibold text-slate-700">Candidato:</span> {currentClientObj.candidato}
+                    {!useLegacyClientSelect ? (
+                      <div className="relative">
+                        <div className="relative">
+                          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            placeholder="Digite as 3 primeiras letras do nome (ex: Com, Dep, Gab, Sil)..."
+                            value={clientSearchQuery}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setClientSearchQuery(val);
+                              setIsClientSearchDropdownOpen(val.trim().length >= 3);
+                            }}
+                            onFocus={() => {
+                              if (clientSearchQuery.trim().length >= 3) {
+                                setIsClientSearchDropdownOpen(true);
+                              }
+                            }}
+                            className="w-full pl-10 pr-10 py-2.5 text-sm bg-white border border-slate-300 rounded-xl text-slate-900 focus:ring-2 focus:ring-orange-500/20 focus:border-[#E05328] shadow-xs"
+                          />
+                          {clientSearchQuery && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setClientSearchQuery('');
+                                setIsClientSearchDropdownOpen(false);
+                              }}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
-                        <div>
-                          <span className="font-semibold text-slate-700">Cargo:</span> {currentClientObj.cargo || 'N/I'}
+
+                        {/* Search Status & Helper Text */}
+                        <div className="mt-1.5 flex items-center justify-between text-[11px]">
+                          {clientSearchQuery.trim().length === 0 ? (
+                            <span className="text-slate-400">
+                              💡 Digite ao menos 3 letras para abrir o popup com os clientes encontrados.
+                            </span>
+                          ) : clientSearchQuery.trim().length < 3 ? (
+                            <span className="text-amber-600 font-medium">
+                              ⏳ Digite mais {3 - clientSearchQuery.trim().length} letra(s) para listar os clientes no popup...
+                            </span>
+                          ) : (
+                            <span className="text-emerald-700 font-medium flex items-center gap-1">
+                              <Check className="w-3.5 h-3.5" />
+                              {filteredClientsForModal.length} cliente(s) encontrado(s) para &ldquo;{clientSearchQuery}&rdquo;
+                            </span>
+                          )}
+
+                          {clientSearchQuery.trim().length >= 3 && (
+                            <button
+                              type="button"
+                              onClick={() => setIsClientSearchDropdownOpen(prev => !prev)}
+                              className="text-[#E05328] font-bold hover:underline"
+                            >
+                              {isClientSearchDropdownOpen ? 'Fechar popup' : 'Abrir popup'}
+                            </button>
+                          )}
                         </div>
-                        <div>
-                          <span className="font-semibold text-slate-700">Telefone:</span> {currentClientObj.telefone}
+
+                        {/* Floating Dropdown / Popup Results */}
+                        {isClientSearchDropdownOpen && clientSearchQuery.trim().length >= 3 && (
+                          <div className="absolute z-50 left-0 right-0 top-full mt-2 bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden max-h-80 overflow-y-auto divide-y divide-slate-100 animate-in fade-in zoom-in-95 duration-150">
+                            <div className="p-2.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-xs text-slate-600">
+                              <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                                <Search className="w-3.5 h-3.5 text-[#E05328]" />
+                                Resultados da Busca ({filteredClientsForModal.length})
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setIsClientSearchDropdownOpen(false)}
+                                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            {filteredClientsForModal.length === 0 ? (
+                              <div className="p-5 text-center space-y-2">
+                                <Building2 className="w-8 h-8 text-slate-300 mx-auto" />
+                                <p className="text-xs text-slate-700 font-semibold">
+                                  Nenhum cliente cadastrado com as letras &ldquo;{clientSearchQuery}&rdquo;
+                                </p>
+                                <p className="text-[11px] text-slate-400">
+                                  Verifique a ortografia ou cadastre um novo cliente agora mesmo.
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsNewClientMode(true);
+                                    setNewClientNome(clientSearchQuery);
+                                    setIsClientSearchDropdownOpen(false);
+                                  }}
+                                  className="mt-2 px-3 py-1.5 text-xs font-bold text-white bg-[#E05328] hover:bg-orange-600 rounded-lg inline-flex items-center gap-1 shadow-xs"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  Cadastrar &ldquo;{clientSearchQuery}&rdquo;
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="divide-y divide-slate-100">
+                                {filteredClientsForModal.map(c => {
+                                  const isSelected = selectedClientId === c.id;
+                                  return (
+                                    <button
+                                      key={c.id}
+                                      type="button"
+                                      onClick={() => handleSelectClient(c.id)}
+                                      className={`w-full text-left p-3.5 hover:bg-orange-50/70 transition-all flex items-start justify-between gap-3 group ${
+                                        isSelected ? 'bg-orange-50/90 border-l-4 border-[#E05328]' : ''
+                                      }`}
+                                    >
+                                      <div className="min-w-0 flex-1 space-y-1">
+                                        <div className="flex items-center gap-2">
+                                          <Building2 className={`w-4 h-4 shrink-0 ${isSelected ? 'text-[#E05328]' : 'text-slate-400 group-hover:text-[#E05328]'}`} />
+                                          <span className="text-xs font-bold text-slate-900 group-hover:text-[#E05328]">
+                                            {c.nome}
+                                          </span>
+                                          {isSelected && (
+                                            <span className="px-1.5 py-0.5 text-[9px] font-black uppercase bg-orange-100 text-orange-800 rounded">
+                                              Selecionado
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        <div className="text-[11px] text-slate-600 flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-6">
+                                          <span className="font-semibold text-slate-800">
+                                            Candidato: {c.candidato} {c.partido ? `(${c.partido})` : ''}
+                                          </span>
+                                          {c.cargo && <span className="text-slate-500">• {c.cargo}</span>}
+                                          {c.telefone && <span className="text-slate-500">• Tel: {c.telefone}</span>}
+                                        </div>
+
+                                        {(c.endereco || c.bairro || c.zonaEleitoral) && (
+                                          <div className="text-[10px] text-slate-400 flex items-center gap-1 pl-6">
+                                            <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                                            <span className="truncate">
+                                              {c.endereco ? `${c.endereco}, ` : ''}{c.bairro ? `${c.bairro} - ` : ''}{c.cidade}
+                                              {c.zonaEleitoral ? ` (${c.zonaEleitoral})` : ''}
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      <div className="shrink-0 pt-1 flex items-center gap-1 text-xs font-bold text-[#E05328] group-hover:translate-x-0.5 transition-transform">
+                                        <span>Selecionar</span>
+                                        <ArrowRight className="w-3.5 h-3.5" />
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <select
+                        value={selectedClientId}
+                        onChange={e => handleSelectClient(e.target.value)}
+                        className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-200 rounded-xl text-slate-900 focus:ring-2 focus:ring-orange-500/20 focus:border-[#E05328]"
+                        required={!isNewClientMode}
+                      >
+                        <option value="">-- Selecione um cliente da lista --</option>
+                        {clientes.map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.nome} — {c.candidato} ({c.partido || 'S/P'}) | {c.telefone}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    {/* Selected Client Card Details */}
+                    {currentClientObj ? (
+                      <div className="p-3.5 bg-white rounded-xl border border-orange-200/80 shadow-xs space-y-2">
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                          <div className="flex items-center gap-2">
+                            <span className="p-1 bg-emerald-100 text-emerald-700 rounded-md">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            </span>
+                            <span className="text-xs font-bold text-slate-900">
+                              {currentClientObj.nome}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedClientId('');
+                              setClientSearchQuery('');
+                              setIsClientSearchDropdownOpen(false);
+                            }}
+                            className="text-[11px] font-semibold text-slate-500 hover:text-red-600 transition-colors"
+                          >
+                            Trocar Cliente
+                          </button>
                         </div>
-                        <div>
-                          <span className="font-semibold text-slate-700">CNPJ:</span> {currentClientObj.cnpjCampanha || 'N/I'}
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-slate-600">
+                          <div>
+                            <span className="font-semibold text-slate-700">Candidato:</span> {currentClientObj.candidato}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-slate-700">Cargo:</span> {currentClientObj.cargo || 'N/I'}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-slate-700">Telefone:</span> {currentClientObj.telefone}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-slate-700">CNPJ:</span> {currentClientObj.cnpjCampanha || 'N/I'}
+                          </div>
+                          <div className="col-span-2 sm:col-span-4 text-slate-500 text-[11px]">
+                            <span className="font-semibold text-slate-700">Endereço:</span>{' '}
+                            {currentClientObj.endereco ? `${currentClientObj.endereco}, ${currentClientObj.numero || 'S/N'}` : 'Não informado'}
+                            {currentClientObj.bairro ? ` - ${currentClientObj.bairro}` : ''}, {currentClientObj.cidade}
+                            {currentClientObj.zonaEleitoral ? ` (${currentClientObj.zonaEleitoral})` : ''}
+                          </div>
                         </div>
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200 text-xs text-amber-800 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>Nenhum cliente selecionado. Digite ao menos 3 letras no campo de busca para selecionar o cliente no popup.</span>
                       </div>
                     )}
                   </div>
@@ -2102,89 +2473,144 @@ export const PedidosView: React.FC<PedidosViewProps> = ({
       {printPedido && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full p-8 space-y-6 animate-in fade-in zoom-in-95 duration-150 print:p-0 print:border-none print:shadow-none">
-            <div className="flex items-center justify-between border-b pb-4">
+            <div id="area-impressao-pedido" className="space-y-6 printable-area bg-white p-2">
+              <div className="flex items-center justify-between border-b pb-4">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">FleetMoto Logística Eleitoral 2026</h2>
+                  <p className="text-xs text-slate-500 font-mono">Dossiê e Ordem de Produção / Romaneio de Separação</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-lg font-bold font-mono text-[#E05328] block">{printPedido.numeroPedido}</span>
+                  <p className="text-xs text-slate-400">{formatDateTime(printPedido.dataPedido)}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-xs">
+                <div className="space-y-1">
+                  <p><span className="font-bold">Cliente:</span> {printPedido.clienteNome}</p>
+                  <p><span className="font-bold">Candidato:</span> {printPedido.candidato} ({printPedido.partido || 'S/P'})</p>
+                  <p><span className="font-bold">CNPJ Campanha:</span> {printPedido.cnpjCampanha || 'N/I'}</p>
+                  <p><span className="font-bold">Telefone:</span> {printPedido.telefone}</p>
+                </div>
+                <div className="space-y-1">
+                  <p><span className="font-bold">Modalidade:</span> {printPedido.modalidade === 'entrega' ? 'Entrega em Comitê' : 'Retirada'}</p>
+                  <p><span className="font-bold">Prioridade:</span> {printPedido.prioridade}</p>
+                  <p><span className="font-bold">Previsão:</span> {formatDateTime(printPedido.dataPrevisao)}</p>
+                  {printPedido.codigoRastreio && <p><span className="font-bold">Rastreamento:</span> {printPedido.codigoRastreio}</p>}
+                </div>
+              </div>
+
+              {printPedido.enderecoEntrega && (
+                <div className="p-3 bg-slate-50 rounded-xl text-xs space-y-1 border border-slate-100">
+                  <p className="font-bold text-slate-800">Endereço de Entrega:</p>
+                  <p className="text-slate-600">{printPedido.enderecoEntrega.endereco}, {printPedido.enderecoEntrega.numero} - {printPedido.enderecoEntrega.bairro}, {printPedido.enderecoEntrega.cidade}/{printPedido.enderecoEntrega.uf}</p>
+                  <p className="text-slate-600">Recebedor: {printPedido.enderecoEntrega.responsavelRecebimento} ({printPedido.enderecoEntrega.telefoneRecebedor})</p>
+                </div>
+              )}
+
               <div>
-                <h2 className="text-xl font-black text-slate-900 uppercase">FleetMoto Logística Eleitoral 2026</h2>
-                <p className="text-xs text-slate-500 font-mono">Dossiê e Ordem de Produção / Romaneio de Separação</p>
-              </div>
-              <div className="text-right">
-                <span className="text-lg font-bold font-mono text-[#E05328]">{printPedido.numeroPedido}</span>
-                <p className="text-xs text-slate-400">{formatDateTime(printPedido.dataPedido)}</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div className="space-y-1">
-                <p><span className="font-bold">Cliente:</span> {printPedido.clienteNome}</p>
-                <p><span className="font-bold">Candidato:</span> {printPedido.candidato} ({printPedido.partido || 'S/P'})</p>
-                <p><span className="font-bold">CNPJ Campanha:</span> {printPedido.cnpjCampanha || 'N/I'}</p>
-                <p><span className="font-bold">Telefone:</span> {printPedido.telefone}</p>
-              </div>
-              <div className="space-y-1">
-                <p><span className="font-bold">Modalidade:</span> {printPedido.modalidade === 'entrega' ? 'Entrega em Comitê' : 'Retirada'}</p>
-                <p><span className="font-bold">Prioridade:</span> {printPedido.prioridade}</p>
-                <p><span className="font-bold">Previsão:</span> {formatDateTime(printPedido.dataPrevisao)}</p>
-                {printPedido.codigoRastreio && <p><span className="font-bold">Rastreamento:</span> {printPedido.codigoRastreio}</p>}
-              </div>
-            </div>
-
-            {printPedido.enderecoEntrega && (
-              <div className="p-3 bg-slate-50 rounded-xl text-xs space-y-1">
-                <p className="font-bold">Endereço de Entrega:</p>
-                <p>{printPedido.enderecoEntrega.endereco}, {printPedido.enderecoEntrega.numero} - {printPedido.enderecoEntrega.bairro}, {printPedido.enderecoEntrega.cidade}/{printPedido.enderecoEntrega.uf}</p>
-                <p>Recebedor: {printPedido.enderecoEntrega.responsavelRecebimento} ({printPedido.enderecoEntrega.telefoneRecebedor})</p>
-              </div>
-            )}
-
-            <div>
-              <table className="w-full text-left text-xs border border-slate-200">
-                <thead>
-                  <tr className="bg-slate-100 border-b font-bold">
-                    <th className="p-2">Item</th>
-                    <th className="p-2">Quantidade</th>
-                    <th className="p-2">Unidade</th>
-                    <th className="p-2 text-right">Observações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {printPedido.itens?.map((item, idx) => (
-                    <tr key={idx}>
-                      <td className="p-2">
-                        <div className="font-bold">{item.nomeMaterial}</div>
-                        <div className="text-[10px] text-slate-500">{item.descricao}</div>
-                      </td>
-                      <td className="p-2 font-bold">{item.quantidade}</td>
-                      <td className="p-2">{formatUnidadeMedida(item.unidadeMedida)}</td>
-                      <td className="p-2 text-right">{item.observacao || '-'}</td>
+                <table className="w-full text-left text-xs border border-slate-200">
+                  <thead>
+                    <tr className="bg-slate-100 border-b font-bold">
+                      <th className="p-2">Item</th>
+                      <th className="p-2">Quantidade</th>
+                      <th className="p-2">Unidade</th>
+                      <th className="p-2 text-right">Observações</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y">
+                    {printPedido.itens?.map((item, idx) => (
+                      <tr key={idx}>
+                        <td className="p-2">
+                          <div className="font-bold text-slate-900">{item.nomeMaterial}</div>
+                          <div className="text-[10px] text-slate-500">{item.descricao}</div>
+                        </td>
+                        <td className="p-2 font-bold text-slate-900">{item.quantidade}</td>
+                        <td className="p-2">{formatUnidadeMedida(item.unidadeMedida)}</td>
+                        <td className="p-2 text-right">{item.observacao || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-between items-center text-xs font-bold pt-2 border-t border-slate-200">
+                <span>Total de Itens: {printPedido.quantidadeTotal} unidades</span>
+                <span className="text-sm text-slate-700">Modalidade: {printPedido.modalidade === 'entrega' ? 'Entrega em Comitê' : 'Retirada'}</span>
+              </div>
+
+              <div className="pt-8 border-t border-slate-200 grid grid-cols-2 gap-8 text-center text-xs text-slate-400">
+                <div className="border-t border-slate-300 pt-2 font-medium">Assinatura Expedição</div>
+                <div className="border-t border-slate-300 pt-2 font-medium">Assinatura Recebedor</div>
+              </div>
             </div>
 
-            <div className="flex justify-between items-center text-xs font-bold pt-2 border-t">
-              <span>Total de Itens: {printPedido.quantidadeTotal} unidades</span>
-              <span className="text-sm text-slate-700">Modalidade: {printPedido.modalidade === 'entrega' ? 'Entrega em Comitê' : 'Retirada'}</span>
-            </div>
-
-            <div className="pt-8 border-t grid grid-cols-2 gap-8 text-center text-xs text-slate-400">
-              <div className="border-t border-slate-300 pt-2">Assinatura Expedição</div>
-              <div className="border-t border-slate-300 pt-2">Assinatura Recebedor</div>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 print:hidden pt-4">
+            <div className="flex items-center justify-between print:hidden pt-4 border-t border-slate-100">
               <button
-                onClick={() => setPrintPedido(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
+                type="button"
+                onClick={() => {
+                  const content = `=====================================================
+FLEETMOTO LOGÍSTICA ELEITORAL 2026
+DOSSIÊ E ORDEM DE PRODUÇÃO / ROMANEIO DE SEPARAÇÃO
+=====================================================
+Número do Pedido: ${printPedido.numeroPedido}
+Data do Pedido: ${formatDateTime(printPedido.dataPedido)}
+Cliente: ${printPedido.clienteNome}
+Candidato: ${printPedido.candidato} (${printPedido.partido || 'S/P'})
+CNPJ Campanha: ${printPedido.cnpjCampanha || 'N/I'}
+Telefone: ${printPedido.telefone}
+Modalidade: ${printPedido.modalidade === 'entrega' ? 'Entrega em Comitê' : 'Retirada'}
+Prioridade: ${printPedido.prioridade.toUpperCase()}
+Previsão: ${formatDateTime(printPedido.dataPrevisao)}
+Código de Rastreamento: ${printPedido.codigoRastreio || 'NÃO ATRIBUÍDO'}
+
+ENDEREÇO DE ENTREGA:
+${printPedido.enderecoEntrega ? `${printPedido.enderecoEntrega.endereco}, ${printPedido.enderecoEntrega.numero} - ${printPedido.enderecoEntrega.bairro}, ${printPedido.enderecoEntrega.cidade}/${printPedido.enderecoEntrega.uf}
+Responsável pelo Recebimento: ${printPedido.enderecoEntrega.responsavelRecebimento} (${printPedido.enderecoEntrega.telefoneRecebedor})` : 'Retirada no Centro de Distribuição'}
+
+ITENS DO PEDIDO:
+${printPedido.itens?.map((it, idx) => `${idx + 1}. ${it.nomeMaterial} - Qtd: ${it.quantidade} (${it.unidadeMedida}) | Obs: ${it.observacao || '-'}`).join('\n')}
+
+Total de Volumes / Itens: ${printPedido.quantidadeTotal}
+=====================================================
+Assinatura Expedição: _____________________________
+Assinatura Recebedor: _____________________________
+=====================================================`;
+                  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `Pedido_${printPedido.numeroPedido}_Dossie.txt`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }}
+                className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+                title="Baixar cópia em arquivo texto"
               >
-                Fechar
+                <Download className="w-3.5 h-3.5" />
+                <span>Baixar Dossiê (.txt)</span>
               </button>
-              <button
-                onClick={() => window.print()}
-                className="px-5 py-2 text-xs font-semibold bg-[#E05328] text-white rounded-xl"
-              >
-                Imprimir Documento
-              </button>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPrintPedido(null)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  Fechar
+                </button>
+                <button
+                  type="button"
+                  id="btn-imprimir-pedido-documento"
+                  onClick={() => printElementById('area-impressao-pedido', { title: `Pedido_${printPedido.numeroPedido}` })}
+                  className="px-5 py-2 text-xs font-bold bg-[#E05328] hover:bg-orange-700 text-white rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Imprimir Documento</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

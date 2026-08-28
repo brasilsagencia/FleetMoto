@@ -29,6 +29,7 @@ import { Usuario } from '../types';
 export type TabType =
   | 'dashboard'
   | 'comites'
+  | 'rotas_clientes'
   | 'pedidos'
   | 'estoque'
   | 'expedicao'
@@ -79,6 +80,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const menuItems = [
     { id: 'dashboard' as TabType, label: 'Dashboard', icon: LayoutDashboard },
     { id: 'comites' as TabType, label: 'Clientes', icon: Building2, badge: '6' },
+    {
+      id: 'rotas_clientes' as TabType,
+      label: 'Criação de Rotas',
+      icon: Navigation,
+      badge: '4 Regiões',
+      badgeColor: 'bg-[#E05328] text-white font-bold',
+    },
     {
       id: 'pedidos' as TabType,
       label: 'Pedidos',

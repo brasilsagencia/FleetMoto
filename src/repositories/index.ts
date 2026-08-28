@@ -48,7 +48,9 @@ import {
   EstoqueSaldoDoc,
   EstoqueMovimentacaoDoc,
   EstoqueReservaDoc,
-  InventarioDoc
+  InventarioDoc,
+  RelatorioModeloDoc,
+  RelatorioHistoricoDoc
 } from '../models/firebase.types';
 import {
   ItemExpedicao,
@@ -446,41 +448,120 @@ export class EntregasRepository extends BaseRepository<EntregaDoc> {
       const entregaData = entregaSnap.data() as EntregaDoc;
       const nowIso = new Date().toISOString();
 
-      transaction.update(entregaRef, {
+      // Read motoboy doc BEFORE any write
+      let motoboySnap: any = null;
+      let motoboyRef: any = null;
+      if (entregaData.motoboyId) {
+        motoboyRef = doc(db, 'motoboys', entregaData.motoboyId);
+        motoboySnap = await transaction.get(motoboyRef);
+      }
+
+      // Read cliente doc BEFORE any write
+      let clienteSnap: any = null;
+      let clienteRef: any = null;
+      if (entregaData.comiteId) {
+        clienteRef = doc(db, 'clientes', entregaData.comiteId);
+        clienteSnap = await transaction.get(clienteRef);
+      }
+
+      // Read pedido doc BEFORE any write
+      let pedidoSnap: any = null;
+      let pedidoRef: any = null;
+      if (entregaData.pedidoId) {
+        pedidoRef = doc(db, 'pedidos', entregaData.pedidoId);
+        pedidoSnap = await transaction.get(pedidoRef);
+      }
+
+      // Read expedicao doc BEFORE any write
+      let expedicaoSnap: any = null;
+      let expedicaoRef: any = null;
+      if (entregaData.expedicaoId) {
+        expedicaoRef = doc(db, 'expedicoes', entregaData.expedicaoId);
+        expedicaoSnap = await transaction.get(expedicaoRef);
+      }
+
+      // --- ALL WRITES AFTER ALL READS ---
+      const cleanPod = sanitizeFirestoreData(podData);
+
+      transaction.update(entregaRef, sanitizeFirestoreData({
         status: 'entregue',
         dataEntrega: nowIso,
-        comprovantePOD: podData,
+        comprovantePOD: cleanPod,
         updatedAt: nowIso,
         updatedBy: currentUserId || 'sistema'
-      });
+      }));
 
-      if (entregaData.motoboyId) {
-        const motoboyRef = doc(db, 'motoboys', entregaData.motoboyId);
-        const motoboySnap = await transaction.get(motoboyRef);
-        if (motoboySnap.exists()) {
-          const mData = motoboySnap.data() as MotoboyDoc;
-          transaction.update(motoboyRef, {
-            totalEntregas: (mData.totalEntregas || 0) + 1,
-            status: 'disponivel',
-            updatedAt: nowIso,
-            updatedBy: currentUserId || 'sistema'
-          });
-        }
+      if (motoboyRef && motoboySnap && motoboySnap.exists()) {
+        const mData = motoboySnap.data() as MotoboyDoc;
+        transaction.update(motoboyRef, sanitizeFirestoreData({
+          totalEntregas: (mData.totalEntregas || 0) + 1,
+          status: 'disponivel',
+          updatedAt: nowIso,
+          updatedBy: currentUserId || 'sistema'
+        }));
       }
 
-      if (entregaData.comiteId) {
-        const clienteRef = doc(db, 'clientes', entregaData.comiteId);
-        const clienteSnap = await transaction.get(clienteRef);
-        if (clienteSnap.exists()) {
-          const cData = clienteSnap.data() as ClienteDoc;
-          transaction.update(clienteRef, {
-            totalEntregas: (cData.totalEntregas || 0) + 1,
-            volumeTotalMateriais: (cData.volumeTotalMateriais || 0) + (entregaData.quantidade || 0),
-            updatedAt: nowIso,
-            updatedBy: currentUserId || 'sistema'
-          });
-        }
+      if (clienteRef && clienteSnap && clienteSnap.exists()) {
+        const cData = clienteSnap.data() as ClienteDoc;
+        transaction.update(clienteRef, sanitizeFirestoreData({
+          totalEntregas: (cData.totalEntregas || 0) + 1,
+          volumeTotalMateriais: (cData.volumeTotalMateriais || 0) + (entregaData.quantidade || 0),
+          updatedAt: nowIso,
+          updatedBy: currentUserId || 'sistema'
+        }));
       }
+
+      if (pedidoRef && pedidoSnap && pedidoSnap.exists()) {
+        const pData = pedidoSnap.data() as PedidoDoc;
+        const historico = [
+          ...(pData.historicoStatus || []),
+          {
+            status: 'entregue' as const,
+            dataHora: nowIso,
+            usuarioId: currentUserId || 'sistema',
+            usuarioNome: 'Motoboy / POD',
+            observacao: `Entrega concluída via POD (${cleanPod?.nomeRecebedor || 'Recebedor'})`,
+          }
+        ];
+        transaction.update(pedidoRef, sanitizeFirestoreData({
+          status: 'entregue',
+          historicoStatus: historico,
+          updatedAt: nowIso,
+          updatedBy: currentUserId || 'sistema'
+        }));
+      }
+
+      if (expedicaoRef && expedicaoSnap && expedicaoSnap.exists()) {
+        transaction.update(expedicaoRef, sanitizeFirestoreData({
+          status: 'entregue',
+          updatedAt: nowIso,
+          updatedBy: currentUserId || 'sistema'
+        }));
+      }
+
+      // Registro imutável na trilha de auditoria TSE
+      const logRef = doc(collection(db, 'logs_auditoria'));
+      transaction.set(logRef, sanitizeFirestoreData({
+        id: logRef.id,
+        acao: 'conclusao_entrega_pod',
+        entidade: 'entregas',
+        entidadeId: entregaId,
+        usuarioId: currentUserId || 'sistema',
+        usuarioNome: cleanPod?.motoboyNome || 'Motoboy',
+        detalhes: `Entrega ${entregaData.codigoRastreio} finalizada com POD. Recebedor: ${cleanPod?.nomeRecebedor || 'N/A'}. Hash: ${cleanPod?.hashSha256 || 'N/A'}`,
+        dataHora: nowIso,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        updatedBy: currentUserId || 'sistema',
+        metadados: {
+          codigoRastreio: entregaData.codigoRastreio,
+          pedidoId: entregaData.pedidoId || null,
+          comiteId: entregaData.comiteId || null,
+          hashSha256: cleanPod?.hashSha256 || null,
+          localizacaoGps: cleanPod?.localizacaoGps || null,
+          nomeRecebedor: cleanPod?.nomeRecebedor || null,
+        }
+      }));
     });
   }
 }
@@ -2296,6 +2377,15 @@ export class EstoqueReservasRepository extends BaseRepository<EstoqueReservaDoc>
       const matSnaps = await getDocs(query(matColRef, where('isDeleted', '!=', true)));
       const materiaisCadastrados = matSnaps.docs.map((d) => ({ id: d.id, ...(d.data() as MaterialDoc) }));
 
+      // Phase 1: All Reads
+      const itemsToReserve: {
+        item: any;
+        qtySolicitada: number;
+        mat?: MaterialDoc;
+        saldoDocRef?: any;
+        saldoSnap?: any;
+      }[] = [];
+
       for (const item of itens) {
         const qtySolicitada = Number(item.quantidade) || 0;
         if (qtySolicitada <= 0) continue;
@@ -2311,6 +2401,18 @@ export class EstoqueReservasRepository extends BaseRepository<EstoqueReservaDoc>
         }
 
         if (!mat) {
+          itemsToReserve.push({ item, qtySolicitada });
+          continue;
+        }
+
+        const saldoDocRef = doc(db, 'estoque_saldos', mat.id);
+        const saldoSnap = await transaction.get(saldoDocRef);
+        itemsToReserve.push({ item, qtySolicitada, mat, saldoDocRef, saldoSnap });
+      }
+
+      // Phase 2: All Writes
+      for (const { item, qtySolicitada, mat, saldoDocRef, saldoSnap } of itemsToReserve) {
+        if (!mat || !saldoDocRef || !saldoSnap) {
           resultados.push({
             materialNome: item.nomeMaterial || item.tipoMaterial,
             solicitado: qtySolicitada,
@@ -2320,8 +2422,6 @@ export class EstoqueReservasRepository extends BaseRepository<EstoqueReservaDoc>
           continue;
         }
 
-        const saldoDocRef = doc(db, 'estoque_saldos', mat.id);
-        const saldoSnap = await transaction.get(saldoDocRef);
         let currentDisponivel = 0;
         let currentReservado = 0;
         let currentFisico = 0;
@@ -2397,36 +2497,42 @@ export class EstoqueReservasRepository extends BaseRepository<EstoqueReservaDoc>
       const q = query(collection(db, 'estoque_reservas'), where('pedidoId', '==', pedidoId), where('isDeleted', '!=', true));
       const resSnaps = await getDocs(q);
 
+      // Phase 1: All Reads
+      const validReservas: { rDoc: any; res: EstoqueReservaDoc; saldoRef: any; saldoSnap: any }[] = [];
       for (const rDoc of resSnaps.docs) {
         const res = rDoc.data() as EstoqueReservaDoc;
         if (res.quantidadeReservada > 0 && (res.status === 'reservado' || res.status === 'reserva_parcial' || res.status === 'pendente')) {
           const saldoRef = doc(db, 'estoque_saldos', res.materialId);
           const saldoSnap = await transaction.get(saldoRef);
-
-          if (saldoSnap.exists()) {
-            const s = saldoSnap.data() as EstoqueSaldoDoc;
-            const transferQtd = Math.min(s.reservado || 0, res.quantidadeReservada);
-
-            if (transferQtd > 0) {
-              transaction.update(
-                saldoRef,
-                sanitizeFirestoreData({
-                  reservado: Math.max(0, (s.reservado || 0) - transferQtd),
-                  emSeparacao: (s.emSeparacao || 0) + transferQtd,
-                  updatedAt: nowIso,
-                })
-              );
-            }
-          }
-
-          transaction.update(
-            rDoc.ref,
-            sanitizeFirestoreData({
-              status: 'liberado_separacao',
-              updatedAt: nowIso,
-            })
-          );
+          validReservas.push({ rDoc, res, saldoRef, saldoSnap });
         }
+      }
+
+      // Phase 2: All Writes
+      for (const { rDoc, res, saldoRef, saldoSnap } of validReservas) {
+        if (saldoSnap.exists()) {
+          const s = saldoSnap.data() as EstoqueSaldoDoc;
+          const transferQtd = Math.min(s.reservado || 0, res.quantidadeReservada);
+
+          if (transferQtd > 0) {
+            transaction.update(
+              saldoRef,
+              sanitizeFirestoreData({
+                reservado: Math.max(0, (s.reservado || 0) - transferQtd),
+                emSeparacao: (s.emSeparacao || 0) + transferQtd,
+                updatedAt: nowIso,
+              })
+            );
+          }
+        }
+
+        transaction.update(
+          rDoc.ref,
+          sanitizeFirestoreData({
+            status: 'liberado_separacao',
+            updatedAt: nowIso,
+          })
+        );
       }
     });
   }
@@ -2449,6 +2555,14 @@ export class EstoqueReservasRepository extends BaseRepository<EstoqueReservaDoc>
       const matSnaps = await getDocs(query(matColRef, where('isDeleted', '!=', true)));
       const materiaisCadastrados = matSnaps.docs.map((d) => ({ id: d.id, ...(d.data() as MaterialDoc) }));
 
+      // Phase 1: All Reads
+      const itemsToProcess: {
+        qty: number;
+        mat: MaterialDoc;
+        saldoRef: any;
+        saldoSnap: any;
+      }[] = [];
+
       for (const item of itensLiberados) {
         const qty = Number(item.quantidade) || 0;
         if (qty <= 0) continue;
@@ -2465,56 +2579,60 @@ export class EstoqueReservasRepository extends BaseRepository<EstoqueReservaDoc>
         if (mat) {
           const saldoRef = doc(db, 'estoque_saldos', mat.id);
           const saldoSnap = await transaction.get(saldoRef);
+          itemsToProcess.push({ qty, mat, saldoRef, saldoSnap });
+        }
+      }
 
-          if (saldoSnap.exists()) {
-            const s = saldoSnap.data() as EstoqueSaldoDoc;
-            const currentFisico = s.estoqueFisico || 0;
-            const currentEmSep = s.emSeparacao || 0;
-            const currentReserv = s.reservado || 0;
+      // Phase 2: All Writes
+      for (const { qty, mat, saldoRef, saldoSnap } of itemsToProcess) {
+        if (saldoSnap.exists()) {
+          const s = saldoSnap.data() as EstoqueSaldoDoc;
+          const currentFisico = s.estoqueFisico || 0;
+          const currentEmSep = s.emSeparacao || 0;
+          const currentReserv = s.reservado || 0;
 
-            const novoFisico = Math.max(0, currentFisico - qty);
-            const novoEmSep = Math.max(0, currentEmSep - qty);
-            const novoReserv = Math.max(0, currentReserv - Math.max(0, qty - currentEmSep));
+          const novoFisico = Math.max(0, currentFisico - qty);
+          const novoEmSep = Math.max(0, currentEmSep - qty);
+          const novoReserv = Math.max(0, currentReserv - Math.max(0, qty - currentEmSep));
 
-            transaction.update(
-              saldoRef,
-              sanitizeFirestoreData({
-                estoqueFisico: novoFisico,
-                emSeparacao: novoEmSep,
-                reservado: novoReserv,
-                updatedAt: nowIso,
-              })
-            );
+          transaction.update(
+            saldoRef,
+            sanitizeFirestoreData({
+              estoqueFisico: novoFisico,
+              emSeparacao: novoEmSep,
+              reservado: novoReserv,
+              updatedAt: nowIso,
+            })
+          );
 
-            // Cria movimentação de saída para entrega
-            const movRef = doc(collection(db, 'estoque_movimentacoes'));
-            transaction.set(
-              movRef,
-              sanitizeFirestoreData({
-                materialId: mat.id,
-                materialNome: mat.nome,
-                materialSku: mat.sku,
-                tipo: 'saida',
-                subtipo: 'saida_entrega',
-                quantidade: qty,
-                saldoAnterior: currentFisico,
-                saldoPosterior: novoFisico,
-                custoUnitario: mat.custoUnitario || 0,
-                valorTotal: qty * (mat.custoUnitario || 0),
-                pedidoId,
-                expedicaoId,
-                entregaId,
-                rotaId,
-                motivo: `Despacho e Liberação para Entrega (Pedido #${pedidoId.slice(0, 8)})`,
-                responsavel: usuarioNome,
-                usuarioId,
-                usuarioNome,
-                createdAt: nowIso,
-                updatedAt: nowIso,
-                isDeleted: false,
-              })
-            );
-          }
+          // Cria movimentação de saída para entrega
+          const movRef = doc(collection(db, 'estoque_movimentacoes'));
+          transaction.set(
+            movRef,
+            sanitizeFirestoreData({
+              materialId: mat.id,
+              materialNome: mat.nome,
+              materialSku: mat.sku,
+              tipo: 'saida',
+              subtipo: 'saida_entrega',
+              quantidade: qty,
+              saldoAnterior: currentFisico,
+              saldoPosterior: novoFisico,
+              custoUnitario: mat.custoUnitario || 0,
+              valorTotal: qty * (mat.custoUnitario || 0),
+              pedidoId,
+              expedicaoId,
+              entregaId,
+              rotaId,
+              motivo: `Despacho e Liberação para Entrega (Pedido #${pedidoId.slice(0, 8)})`,
+              responsavel: usuarioNome,
+              usuarioId,
+              usuarioNome,
+              createdAt: nowIso,
+              updatedAt: nowIso,
+              isDeleted: false,
+            })
+          );
         }
       }
 
@@ -2541,6 +2659,8 @@ export class EstoqueReservasRepository extends BaseRepository<EstoqueReservaDoc>
       const q = query(collection(db, 'estoque_reservas'), where('pedidoId', '==', pedidoId), where('isDeleted', '!=', true));
       const resSnaps = await getDocs(q);
 
+      // Phase 1: All Reads
+      const reservasToCancel: { rDoc: any; res: EstoqueReservaDoc; saldoRef: any; saldoSnap: any }[] = [];
       for (const rDoc of resSnaps.docs) {
         const res = rDoc.data() as EstoqueReservaDoc;
 
@@ -2550,39 +2670,43 @@ export class EstoqueReservasRepository extends BaseRepository<EstoqueReservaDoc>
         ) {
           const saldoRef = doc(db, 'estoque_saldos', res.materialId);
           const saldoSnap = await transaction.get(saldoRef);
+          reservasToCancel.push({ rDoc, res, saldoRef, saldoSnap });
+        }
+      }
 
-          if (saldoSnap.exists()) {
-            const s = saldoSnap.data() as EstoqueSaldoDoc;
-            const currentDisponivel = s.disponivel || 0;
-            const currentReservado = s.reservado || 0;
-            const currentEmSep = s.emSeparacao || 0;
+      // Phase 2: All Writes
+      for (const { rDoc, res, saldoRef, saldoSnap } of reservasToCancel) {
+        if (saldoSnap.exists()) {
+          const s = saldoSnap.data() as EstoqueSaldoDoc;
+          const currentDisponivel = s.disponivel || 0;
+          const currentReservado = s.reservado || 0;
+          const currentEmSep = s.emSeparacao || 0;
 
-            const devSep = Math.min(currentEmSep, res.quantidadeReservada);
-            const devRes = Math.min(currentReservado, res.quantidadeReservada - devSep);
+          const devSep = Math.min(currentEmSep, res.quantidadeReservada);
+          const devRes = Math.min(currentReservado, res.quantidadeReservada - devSep);
 
-            const novoDisponivel = currentDisponivel + res.quantidadeReservada;
-            const novoReservado = Math.max(0, currentReservado - devRes);
-            const novoEmSep = Math.max(0, currentEmSep - devSep);
-
-            transaction.update(
-              saldoRef,
-              sanitizeFirestoreData({
-                disponivel: novoDisponivel,
-                reservado: novoReservado,
-                emSeparacao: novoEmSep,
-                updatedAt: nowIso,
-              })
-            );
-          }
+          const novoDisponivel = currentDisponivel + res.quantidadeReservada;
+          const novoReservado = Math.max(0, currentReservado - devRes);
+          const novoEmSep = Math.max(0, currentEmSep - devSep);
 
           transaction.update(
-            rDoc.ref,
+            saldoRef,
             sanitizeFirestoreData({
-              status: 'cancelado',
+              disponivel: novoDisponivel,
+              reservado: novoReservado,
+              emSeparacao: novoEmSep,
               updatedAt: nowIso,
             })
           );
         }
+
+        transaction.update(
+          rDoc.ref,
+          sanitizeFirestoreData({
+            status: 'cancelado',
+            updatedAt: nowIso,
+          })
+        );
       }
     });
   }
@@ -2742,74 +2866,80 @@ export class InventariosRepository extends BaseRepository<InventarioDoc> {
 
       const itens = (inv.itens || []) as ItemInventario[];
 
+      // Phase 1: All Reads
+      const diffItens: { item: ItemInventario; saldoRef: any; saldoSnap: any }[] = [];
       for (const item of itens) {
         if (item.diferenca && item.diferenca !== 0) {
           const saldoRef = doc(db, 'estoque_saldos', item.materialId);
           const saldoSnap = await transaction.get(saldoRef);
-
-          let currentFisico = item.saldoSistema;
-          let currentDisponivel = item.saldoSistema;
-          let currentReserv = 0;
-          let currentSep = 0;
-          let currentBloq = 0;
-          let currentAvar = 0;
-
-          if (saldoSnap.exists()) {
-            const s = saldoSnap.data() as EstoqueSaldoDoc;
-            currentFisico = s.estoqueFisico || 0;
-            currentDisponivel = s.disponivel || 0;
-            currentReserv = s.reservado || 0;
-            currentSep = s.emSeparacao || 0;
-            currentBloq = s.bloqueado || 0;
-            currentAvar = s.avariado || 0;
-          }
-
-          const novoFisico = Math.max(0, item.saldoContado ?? currentFisico);
-          const novoDisponivel = Math.max(0, novoFisico - currentReserv - currentSep - currentBloq - currentAvar);
-
-          transaction.set(
-            saldoRef,
-            sanitizeFirestoreData({
-              materialId: item.materialId,
-              estoqueFisico: novoFisico,
-              disponivel: novoDisponivel,
-              reservado: currentReserv,
-              emSeparacao: currentSep,
-              bloqueado: currentBloq,
-              avariado: currentAvar,
-              updatedAt: nowIso,
-            }),
-            { merge: true }
-          );
-
-          // Cria movimentação de ajuste de inventário
-          const movRef = doc(collection(db, 'estoque_movimentacoes'));
-          transaction.set(
-            movRef,
-            sanitizeFirestoreData({
-              materialId: item.materialId,
-              materialNome: item.materialNome,
-              materialSku: item.materialSku,
-              tipo: 'ajuste_inventario',
-              subtipo: item.diferenca > 0 ? 'ajuste_inventario_entrada' : 'ajuste_inventario_saida',
-              quantidade: Math.abs(item.diferenca),
-              saldoAnterior: currentFisico,
-              saldoPosterior: novoFisico,
-              custoUnitario: item.custoUnitario || 0,
-              valorTotal: Math.abs(item.diferenca) * (item.custoUnitario || 0),
-              motivo: `Ajuste do Inventário ${inv.codigo}: ${item.diferenca > 0 ? 'Sobra de contagem' : 'Falta de contagem'}${
-                item.justificativa ? ` (${item.justificativa})` : ''
-              }`,
-              autorizadoPorId: supervisorId,
-              autorizadoPorNome: supervisorNome,
-              usuarioId: supervisorId,
-              usuarioNome: supervisorNome,
-              createdAt: nowIso,
-              updatedAt: nowIso,
-              isDeleted: false,
-            })
-          );
+          diffItens.push({ item, saldoRef, saldoSnap });
         }
+      }
+
+      // Phase 2: All Writes
+      for (const { item, saldoRef, saldoSnap } of diffItens) {
+        let currentFisico = item.saldoSistema;
+        let currentDisponivel = item.saldoSistema;
+        let currentReserv = 0;
+        let currentSep = 0;
+        let currentBloq = 0;
+        let currentAvar = 0;
+
+        if (saldoSnap.exists()) {
+          const s = saldoSnap.data() as EstoqueSaldoDoc;
+          currentFisico = s.estoqueFisico || 0;
+          currentDisponivel = s.disponivel || 0;
+          currentReserv = s.reservado || 0;
+          currentSep = s.emSeparacao || 0;
+          currentBloq = s.bloqueado || 0;
+          currentAvar = s.avariado || 0;
+        }
+
+        const novoFisico = Math.max(0, item.saldoContado ?? currentFisico);
+        const novoDisponivel = Math.max(0, novoFisico - currentReserv - currentSep - currentBloq - currentAvar);
+
+        transaction.set(
+          saldoRef,
+          sanitizeFirestoreData({
+            materialId: item.materialId,
+            estoqueFisico: novoFisico,
+            disponivel: novoDisponivel,
+            reservado: currentReserv,
+            emSeparacao: currentSep,
+            bloqueado: currentBloq,
+            avariado: currentAvar,
+            updatedAt: nowIso,
+          }),
+          { merge: true }
+        );
+
+        // Cria movimentação de ajuste de inventário
+        const movRef = doc(collection(db, 'estoque_movimentacoes'));
+        transaction.set(
+          movRef,
+          sanitizeFirestoreData({
+            materialId: item.materialId,
+            materialNome: item.materialNome,
+            materialSku: item.materialSku,
+            tipo: 'ajuste_inventario',
+            subtipo: item.diferenca > 0 ? 'ajuste_inventario_entrada' : 'ajuste_inventario_saida',
+            quantidade: Math.abs(item.diferenca),
+            saldoAnterior: currentFisico,
+            saldoPosterior: novoFisico,
+            custoUnitario: item.custoUnitario || 0,
+            valorTotal: Math.abs(item.diferenca) * (item.custoUnitario || 0),
+            motivo: `Ajuste do Inventário ${inv.codigo}: ${item.diferenca > 0 ? 'Sobra de contagem' : 'Falta de contagem'}${
+              item.justificativa ? ` (${item.justificativa})` : ''
+            }`,
+            autorizadoPorId: supervisorId,
+            autorizadoPorNome: supervisorNome,
+            usuarioId: supervisorId,
+            usuarioNome: supervisorNome,
+            createdAt: nowIso,
+            updatedAt: nowIso,
+            isDeleted: false,
+          })
+        );
       }
 
       transaction.update(
@@ -2898,4 +3028,222 @@ export const estoqueSaldosRepo = new EstoqueSaldosRepository();
 export const estoqueMovimentacoesRepo = new EstoqueMovimentacoesRepository();
 export const estoqueReservasRepo = new EstoqueReservasRepository();
 export const inventariosRepo = new InventariosRepository();
+
+export class RelatoriosModelosRepository extends BaseRepository<RelatorioModeloDoc> {
+  constructor() {
+    super('relatorios_modelos');
+  }
+}
+
+export class RelatoriosHistoricoRepository extends BaseRepository<RelatorioHistoricoDoc> {
+  constructor() {
+    super('relatorios_historico');
+  }
+
+  async registrarEmissao(log: {
+    titulo: string;
+    tipoModelo: string;
+    formato: 'pdf' | 'excel' | 'csv' | 'impressao' | 'compartilhamento';
+    filtrosAplicados: Record<string, any>;
+    totalRegistros: number;
+    usuarioId: string;
+    usuarioNome: string;
+    usuarioPapel?: string;
+  }): Promise<string> {
+    const idUnico = `REL-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    return this.create({
+      ...log,
+      identificadorUnico: idUnico,
+      ipOuDispositivo: typeof navigator !== 'undefined' ? navigator.userAgent : 'Web Browser',
+    } as any, log.usuarioId);
+  }
+}
+
+export const relatoriosModelosRepo = new RelatoriosModelosRepository();
+export const relatoriosHistoricoRepo = new RelatoriosHistoricoRepository();
+
+// ==========================================
+// REPOSITÓRIO DE ROTAS POR CLIENTE (FLEETMOTO)
+// ==========================================
+export class RotasClienteRepository extends BaseRepository<any> {
+  constructor() {
+    super('rotas_clientes');
+  }
+
+  // Gera código amigável de rota: ROT-2026-ZN-001 ou ROT-2026-0001
+  async gerarProximoCodigo(regiao?: string): Promise<string> {
+    try {
+      const prefixoRegiao = regiao === 'Zona Norte' ? 'ZN' :
+        regiao === 'Zona Oeste' ? 'ZO' :
+        regiao === 'Baixada Fluminense' ? 'BX' :
+        regiao === 'Niterói / São Gonçalo' ? 'NSG' : 'GERAL';
+      
+      const counterRef = doc(db, 'metadata', `rotas_counter_${prefixoRegiao}`);
+      const nextSeq = await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(counterRef);
+        let current = 1;
+        if (snap.exists()) {
+          current = (snap.data().seq || 0) + 1;
+        }
+        transaction.set(counterRef, { seq: current, updatedAt: new Date().toISOString() }, { merge: true });
+        return current;
+      });
+      return `ROT-2026-${prefixoRegiao}-${String(nextSeq).padStart(3, '0')}`;
+    } catch (e) {
+      console.warn('Fallback código de rota:', e);
+      const rand = Math.floor(100 + Math.random() * 900);
+      return `ROT-2026-${regiao?.slice(0, 2).toUpperCase() || 'RT'}-${rand}`;
+    }
+  }
+
+  // Salva nova rota com auditoria e vínculo de paradas
+  async criarRotaCliente(
+    rotaData: any,
+    currentUserId?: string,
+    currentUserName?: string
+  ): Promise<string> {
+    const colRef = collection(db, 'rotas_clientes');
+    const nowIso = new Date().toISOString();
+    const codigoRota = rotaData.codigoRota || await this.gerarProximoCodigo(rotaData.regiaoPredominante);
+
+    const historicoInicial = [
+      {
+        id: `HIST-${Date.now()}`,
+        dataHora: nowIso,
+        usuarioId: currentUserId || 'sistema',
+        usuarioNome: currentUserName || 'Gestor Operacional',
+        acao: 'criacao',
+        descricao: `Criação da rota ${codigoRota} para o cliente ${rotaData.clienteNome} com ${rotaData.paradas?.length || 0} paradas.`,
+      }
+    ];
+
+    const cleanData: any = sanitizeFirestoreData({
+      ...rotaData,
+      codigoRota,
+      historicoAlteracoes: historicoInicial,
+      isDeleted: false,
+      deletedAt: null,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      createdBy: currentUserId || 'sistema',
+      updatedBy: currentUserId || 'sistema',
+    });
+
+    const docRef = await addDoc(colRef, cleanData);
+
+    // Registra na trilha de auditoria universal
+    this.logAudit({
+      acao: 'CREATE',
+      colecao: 'rotas_clientes',
+      documentoId: docRef.id,
+      usuarioId: currentUserId || 'sistema',
+      usuarioNome: currentUserName || 'Gestor Operacional',
+      usuarioEmail: 'operacoes@fleetmoto.com.br',
+      usuarioRole: 'administrador',
+      detalhes: `Criação de Rota por Cliente: ${codigoRota} (${rotaData.clienteNome})`,
+      dadosNovos: { ...cleanData, id: docRef.id },
+      timestamp: nowIso,
+    }).catch(console.error);
+
+    return docRef.id;
+  }
+
+  // Atualiza parada e registra histórico
+  async atualizarStatusParada(
+    rotaId: string,
+    paradaId: string,
+    novoStatus: string,
+    motivoOuNota?: string,
+    currentUserId?: string,
+    currentUserName?: string,
+    comprovantePOD?: any
+  ): Promise<void> {
+    const rotaRef = doc(db, 'rotas_clientes', rotaId);
+    const nowIso = new Date().toISOString();
+
+    await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(rotaRef);
+      if (!snap.exists()) throw new Error('Rota não encontrada');
+
+      const rota = snap.data();
+      const paradas = (rota.paradas || []).map((p: any) => {
+        if (p.id === paradaId) {
+          return {
+            ...p,
+            status: novoStatus,
+            motivoInsucesso: motivoOuNota || p.motivoInsucesso,
+            comprovantePOD: comprovantePOD || p.comprovantePOD,
+            horaConclusao: novoStatus === 'Entregue' ? nowIso : p.horaConclusao,
+          };
+        }
+        return p;
+      });
+
+      // Recalcula status geral da rota se todas paradas foram entregues
+      const todasEntregues = paradas.every((p: any) => p.status === 'Entregue');
+      const statusRota = todasEntregues ? 'concluida' : (rota.status === 'planejada' ? 'em_rota' : rota.status);
+
+      const novoHistorico = [
+        ...(rota.historicoAlteracoes || []),
+        {
+          id: `HIST-${Date.now()}`,
+          dataHora: nowIso,
+          usuarioId: currentUserId || 'sistema',
+          usuarioNome: currentUserName || 'Operador',
+          acao: 'alteracao_status',
+          descricao: `Parada atualizada para "${novoStatus}". ${motivoOuNota ? `Obs: ${motivoOuNota}` : ''}`,
+        }
+      ];
+
+      transaction.update(rotaRef, sanitizeFirestoreData({
+        paradas,
+        status: statusRota,
+        historicoAlteracoes: novoHistorico,
+        updatedAt: nowIso,
+        updatedBy: currentUserId || 'sistema',
+      }));
+    });
+  }
+
+  // Duplicar Rota para outra data
+  async duplicarParaData(
+    rotaId: string,
+    novaData: string,
+    currentUserId?: string,
+    currentUserName?: string
+  ): Promise<string> {
+    const rotaSnap = await getDoc(doc(db, 'rotas_clientes', rotaId));
+    if (!rotaSnap.exists()) throw new Error('Rota de origem não encontrada');
+
+    const rotaOrigem = rotaSnap.data();
+    const novoCodigo = await this.gerarProximoCodigo(rotaOrigem.regiaoPredominante);
+
+    // Reseta status de todas paradas para 'Pendente' e remove PODs antigos
+    const novasParadas = (rotaOrigem.paradas || []).map((p: any, idx: number) => ({
+      ...p,
+      id: `PARADA-${Date.now()}-${idx}`,
+      status: 'Pendente',
+      dataEntrega: novaData,
+      comprovantePOD: null,
+      horaChegada: null,
+      horaConclusao: null,
+      motivoInsucesso: null,
+    }));
+
+    const { id, createdAt, updatedAt, ...restoOrigem } = rotaOrigem as any;
+
+    const novaRotaData = {
+      ...restoOrigem,
+      codigoRota: novoCodigo,
+      nomeRota: `${rotaOrigem.nomeRota} (Cópia ${novaData})`,
+      dataRota: novaData,
+      status: 'planejada',
+      paradas: novasParadas,
+    };
+
+    return await this.criarRotaCliente(novaRotaData, currentUserId, currentUserName);
+  }
+}
+
+export const rotasClienteRepo = new RotasClienteRepository();
 

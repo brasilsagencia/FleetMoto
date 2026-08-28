@@ -95,6 +95,17 @@ service cloud.firestore {
       allow create, update: if true;
       allow delete: if request.auth != null;
     }
+
+    match /relatorios_modelos/{modeloId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    match /relatorios_historico/{historicoId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if false; // Imutabilidade do histórico de emissão
+    }
   }
 }
 
