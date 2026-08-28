@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   X,
   FileCheck,
@@ -15,10 +15,13 @@ import {
   FileText,
   DollarSign,
   AlertTriangle,
+  FileDown,
+  Loader2,
 } from 'lucide-react';
 import { ItemRelatorioCentral } from '../../types';
 import { formatCurrency, formatDate, formatNumber } from '../../utils/formatters';
 import { printElementById } from '../../utils/printHelper';
+import { exportElementToPdf } from '../../utils/pdfGenerator';
 
 interface RelatorioDetalhesModalProps {
   isOpen: boolean;
@@ -33,14 +36,30 @@ export const RelatorioDetalhesModal: React.FC<RelatorioDetalhesModalProps> = ({
   item,
   onOpenPODModal,
 }) => {
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
   if (!isOpen || !item) return null;
 
   const original = item.registroOriginal || {};
 
   const handlePrint = () => {
     printElementById('area-impressao-detalhes-relatorio', {
-      title: `Ficha_${item?.numeroPedido || item?.id || 'Registro'}`
+      title: `Ficha_${item?.numeroPedido || item?.id || 'Registro'}`,
     });
+  };
+
+  const handleDownloadPdf = async () => {
+    setIsGeneratingPdf(true);
+    try {
+      await exportElementToPdf('area-impressao-detalhes-relatorio', {
+        fileName: `Dossie_${item?.numeroPedido || item?.id || 'Registro'}_${Date.now()}.pdf`,
+        orientation: 'portrait',
+      });
+    } catch (err) {
+      console.error('[RelatorioDetalhesModal] Erro ao baixar PDF:', err);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   return (
@@ -73,21 +92,36 @@ export const RelatorioDetalhesModal: React.FC<RelatorioDetalhesModalProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 no-print">
+            <button
+              onClick={handleDownloadPdf}
+              disabled={isGeneratingPdf}
+              type="button"
+              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+              title="Baixar PDF"
+            >
+              {isGeneratingPdf ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <FileDown className="w-4 h-4" />
+              )}
+              <span className="hidden sm:inline">Baixar PDF</span>
+            </button>
+
             <button
               onClick={handlePrint}
               type="button"
-              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-all"
+              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
               title="Imprimir Ficha"
             >
-              <Printer className="w-4 h-4" />
+              <Printer className="w-4 h-4 text-orange-300" />
               <span className="hidden sm:inline">Imprimir Ficha</span>
             </button>
 
             <button
               onClick={onClose}
               type="button"
-              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-all"
+              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-all cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -212,7 +246,7 @@ export const RelatorioDetalhesModal: React.FC<RelatorioDetalhesModalProps> = ({
                 {onOpenPODModal && (
                   <button
                     onClick={() => onOpenPODModal(original)}
-                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-xs flex items-center gap-1"
+                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-xs flex items-center gap-1 cursor-pointer no-print"
                   >
                     <FileText className="w-3.5 h-3.5" />
                     <span>Ver Comprovante Oficial</span>
@@ -281,10 +315,10 @@ export const RelatorioDetalhesModal: React.FC<RelatorioDetalhesModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="bg-slate-50 p-4 border-t border-slate-200 flex items-center justify-end gap-3">
+        <div className="bg-slate-50 p-4 border-t border-slate-200 flex items-center justify-end gap-3 no-print">
           <button
             onClick={onClose}
-            className="px-5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 transition-all"
+            className="px-5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 transition-all cursor-pointer"
           >
             Fechar
           </button>

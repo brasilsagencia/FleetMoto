@@ -1,33 +1,125 @@
 /**
  * printHelper.ts
  * Utilitário universal e de alta resiliência para impressão e geração de PDF
- * Funciona perfeitamente em browsers modernos, iFrames (AI Studio), modais e dispositivos móveis.
+ * Compatível com browsers modernos, iFrames (AI Studio sandbox), modais e dispositivos móveis.
  */
+
+import { exportElementToPdf } from './pdfGenerator';
 
 export interface PrintOptions {
   title?: string;
   orientation?: 'portrait' | 'landscape';
   pageFormat?: 'a4' | 'a5' | 'termica' | 'auto';
   customCss?: string;
+  autoPdfFallback?: boolean;
 }
 
 const MOUNT_ID = 'fleetmoto-print-mount-point';
 const STYLE_OVERRIDE_ID = 'fleetmoto-print-temp-style';
 
 /**
- * Imprime um elemento HTML específico pelo ID utilizando montagem direta no DOM
- * Este método é 100% imune a bloqueios de sandboxing de iframe e sobreposições de modais.
+ * Imprime um elemento HTML específico pelo ID utilizando montagem direta e suporte a iframe isolado
  */
 export function printElementById(elementId: string, options: PrintOptions = {}) {
   const el = document.getElementById(elementId);
   const title = options.title || document.title || 'Documento FleetMoto';
 
   if (!el) {
-    console.warn(`[printHelper] Elemento com id '${elementId}' não encontrado. Executando window.print() padrão.`);
-    window.print();
+    console.warn(`[printHelper] Elemento com id '${elementId}' não encontrado.`);
+    try {
+      window.print();
+    } catch {
+      // Ignora erro
+    }
     return;
   }
 
+  // Tenta método via iframe isolado primeiro (mais estável em iframes e ambientes sandboxed)
+  try {
+    const iframe = document.createElement('iframe');
+    iframe.id = 'fleetmoto-print-iframe';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '-9999px';
+    iframe.style.bottom = '-9999px';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (doc) {
+      // Coletar estilos da página atual
+      const styleNodes = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'));
+      let stylesHtml = '';
+      styleNodes.forEach((node) => {
+        stylesHtml += node.outerHTML;
+      });
+
+      const pageSize = options.pageFormat === 'termica' ? '80mm auto' : 'auto';
+      const pageMargin = options.pageFormat === 'termica' ? '3mm' : '8mm';
+
+      doc.open();
+      doc.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>${title}</title>
+            ${stylesHtml}
+            <style>
+              @page {
+                size: ${pageSize};
+                margin: ${pageMargin};
+              }
+              body {
+                background: #ffffff !important;
+                color: #0f172a !important;
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+                margin: 0 !important;
+                padding: 12px !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+              button, .no-print, .print-hidden {
+                display: none !important;
+              }
+              ${options.customCss || ''}
+            </style>
+          </head>
+          <body>
+            ${el.innerHTML}
+          </body>
+        </html>
+      `);
+      doc.close();
+
+      setTimeout(() => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch (err) {
+          console.warn('[printHelper] Iframe print falhou, tentando método DOM direto:', err);
+          fallbackDomPrint(el, title, options);
+        } finally {
+          setTimeout(() => {
+            if (iframe.parentNode) {
+              iframe.parentNode.removeChild(iframe);
+            }
+          }, 3000);
+        }
+      }, 150);
+
+      return;
+    }
+  } catch (iframeErr) {
+    console.warn('[printHelper] Erro ao criar iframe de impressão:', iframeErr);
+  }
+
+  // Fallback se iframe não for suportado
+  fallbackDomPrint(el, title, options);
+}
+
+function fallbackDomPrint(el: HTMLElement, title: string, options: PrintOptions) {
   // 1. Remove qualquer mount point anterior
   const existingMount = document.getElementById(MOUNT_ID);
   if (existingMount && existingMount.parentNode) {
@@ -47,10 +139,10 @@ export function printElementById(elementId: string, options: PrintOptions = {}) 
   mountPoint.innerHTML = el.innerHTML;
   document.body.appendChild(mountPoint);
 
-  // 4. Injeta CSS temporário para regras específicas de página (ex: térmico ou customCss)
+  // 4. Injeta CSS temporário
   const pageSize = options.pageFormat === 'termica' ? '80mm auto' : 'auto';
   const pageMargin = options.pageFormat === 'termica' ? '3mm' : '8mm';
-  
+
   const tempStyle = document.createElement('style');
   tempStyle.id = STYLE_OVERRIDE_ID;
   tempStyle.textContent = `
@@ -62,14 +154,10 @@ export function printElementById(elementId: string, options: PrintOptions = {}) 
   `;
   document.head.appendChild(tempStyle);
 
-  // 5. Salva título original e define título de impressão (usado pelo navegador como nome do PDF)
   const originalTitle = document.title;
   document.title = title;
-
-  // 6. Adiciona classe ao body que isola o elemento impresso
   document.body.classList.add('is-printing-specific-target');
 
-  // 7. Cleanup callback
   let cleanedUp = false;
   const cleanup = () => {
     if (cleanedUp) return;
@@ -89,7 +177,6 @@ export function printElementById(elementId: string, options: PrintOptions = {}) 
 
   window.addEventListener('afterprint', cleanup, { once: true });
 
-  // 8. Dispara o diálogo de impressão
   requestAnimationFrame(() => {
     setTimeout(() => {
       try {
@@ -97,8 +184,10 @@ export function printElementById(elementId: string, options: PrintOptions = {}) 
         window.print();
       } catch (err) {
         console.error('[printHelper] Erro ao invocar window.print():', err);
+        if (options.autoPdfFallback !== false) {
+          exportElementToPdf(el.id, { fileName: title, orientation: options.orientation });
+        }
       } finally {
-        // Fallback de segurança para remover o container
         setTimeout(cleanup, 2500);
       }
     }, 60);

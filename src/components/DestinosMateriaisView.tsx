@@ -22,6 +22,12 @@ import {
   Maximize2,
   FileText,
   FileCheck2,
+  Car,
+  BookOpen,
+  CreditCard,
+  Disc,
+  Tag,
+  Globe,
 } from 'lucide-react';
 import { Entrega, Comite, Motoboy, TipoMaterial } from '../types';
 import {
@@ -40,6 +46,26 @@ export type DestinoMaterialOption =
   | 'santao'
   | 'pragao'
   | 'adesivos_15x40';
+
+export const renderDestinoIcon = (id: DestinoMaterialOption, className = 'w-4 h-4') => {
+  switch (id) {
+    case 'perfurado':
+      return <Car className={className} />;
+    case 'revista':
+      return <BookOpen className={className} />;
+    case 'cartao':
+      return <CreditCard className={className} />;
+    case 'santao':
+      return <FileText className={className} />;
+    case 'pragao':
+      return <Disc className={className} />;
+    case 'adesivos_15x40':
+      return <Tag className={className} />;
+    case 'todos':
+    default:
+      return <Globe className={className} />;
+  }
+};
 
 interface DestinoDetail {
   id: DestinoMaterialOption;
@@ -61,7 +87,7 @@ export const DESTINOS_CONFIG: Record<Exclude<DestinoMaterialOption, 'todos'>, De
     id: 'perfurado',
     nome: 'Perfurado',
     subtitulo: 'Adesivo perfurado para vidro traseiro de veículos',
-    iconeEmoji: '🚗',
+    iconeEmoji: 'Car',
     dimensoes: 'Até 138 x 42 cm (ou área total do vidro)',
     gramatura: 'Vinil adesivo microperfurado 120g/m²',
     capacidadeBau135L: 'Até 120 rolos enrolados com tubete',
@@ -75,7 +101,7 @@ export const DESTINOS_CONFIG: Record<Exclude<DestinoMaterialOption, 'todos'>, De
     id: 'revista',
     nome: 'Revista',
     subtitulo: 'Revistas, tablóides e cartilhas de plano de governo',
-    iconeEmoji: '📖',
+    iconeEmoji: 'BookOpen',
     dimensoes: 'Formato Fechado A4 (21 x 29,7 cm) ou Tablóide',
     gramatura: 'Capa Couché 150g + Miolo LWC 75g (8 a 24 págs)',
     capacidadeBau135L: 'Até 600 a 1.200 exemplares (em fardos)',
@@ -89,7 +115,7 @@ export const DESTINOS_CONFIG: Record<Exclude<DestinoMaterialOption, 'todos'>, De
     id: 'cartao',
     nome: 'Cartão',
     subtitulo: 'Cartões de visita, mini santinhos e cartões com QR Code',
-    iconeEmoji: '📇',
+    iconeEmoji: 'CreditCard',
     dimensoes: '9 x 5 cm ou 8,5 x 5,5 cm',
     gramatura: 'Couché 300g Fosco ou Brilho com verniz',
     capacidadeBau135L: 'Até 40.000 unidades em caixas padronizadas',
@@ -103,7 +129,7 @@ export const DESTINOS_CONFIG: Record<Exclude<DestinoMaterialOption, 'todos'>, De
     id: 'santao',
     nome: 'Santão',
     subtitulo: 'Santão formato expandido A4 / A5 para caminhadas',
-    iconeEmoji: '📑',
+    iconeEmoji: 'FileText',
     dimensoes: 'A4 (21 x 29,7 cm) ou A5 (15 x 21 cm)',
     gramatura: 'Couché 115g a 150g Brilho',
     capacidadeBau135L: 'Até 8.000 a 12.000 unidades empacotadas',
@@ -117,7 +143,7 @@ export const DESTINOS_CONFIG: Record<Exclude<DestinoMaterialOption, 'todos'>, De
     id: 'pragao',
     nome: 'Pragão',
     subtitulo: 'Adesivo redondo grande (7 a 10cm) para militância e eventos',
-    iconeEmoji: '🔴',
+    iconeEmoji: 'Disc',
     dimensoes: 'Diâmetro de 7 cm, 8 cm ou 10 cm (circular)',
     gramatura: 'Papel adesivo brilho 80g ou Vinil',
     capacidadeBau135L: 'Até 25.000 unidades em rolos ou pacotes',
@@ -131,7 +157,7 @@ export const DESTINOS_CONFIG: Record<Exclude<DestinoMaterialOption, 'todos'>, De
     id: 'adesivos_15x40',
     nome: 'Adesivos 15x40',
     subtitulo: 'Adesivo retangular para para-choque e lataria veicular',
-    iconeEmoji: '🏷️',
+    iconeEmoji: 'Tag',
     dimensoes: '15 x 40 cm ou 10 x 30 cm',
     gramatura: 'Vinil adesivo brilho resistente a sol e chuva',
     capacidadeBau135L: 'Até 2.500 unidades em pacotes retos',
@@ -139,7 +165,7 @@ export const DESTINOS_CONFIG: Record<Exclude<DestinoMaterialOption, 'todos'>, De
     tseNorma: 'Tamanho máximo permitido pela legislação eleitoral para adesivos plásticos em para-choques (0,5m²)',
     descricaoTecnica: 'Adesivo de alta durabilidade com corte reto para aplicação traseira ou lateral em automóveis.',
     unidadePadrao: 'unidades',
-    pesoUnitarioGrama: 12.0,
+    pesoUnitarioGrama: 8,
   },
 };
 
@@ -279,13 +305,15 @@ export const DestinosMateriaisView: React.FC<DestinosMateriaisViewProps> = ({
           {/* Option: Todos */}
           <button
             onClick={() => setSelectedDestino('todos')}
-            className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
+            className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer ${
               selectedDestino === 'todos'
                 ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
                 : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
             }`}
           >
-            <span className="text-sm">🌐</span>
+            <div className="w-5 h-5 flex items-center justify-center">
+              {renderDestinoIcon('todos', 'w-4 h-4')}
+            </div>
             <span className="text-xs font-bold mt-1">Todos</span>
             <span className={`text-[10px] mt-0.5 ${selectedDestino === 'todos' ? 'text-slate-300' : 'text-slate-500'}`}>
               {entregas.length} despachos
@@ -295,14 +323,16 @@ export const DestinosMateriaisView: React.FC<DestinosMateriaisViewProps> = ({
           {/* Option 1: Perfurado */}
           <button
             onClick={() => setSelectedDestino('perfurado')}
-            className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
+            className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer ${
               selectedDestino === 'perfurado'
                 ? 'bg-[#E05328] text-white border-[#E05328] shadow-sm'
                 : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200'
             }`}
           >
             <div className="flex items-center justify-between w-full">
-              <span className="text-sm">🚗</span>
+              <div className="w-5 h-5 flex items-center justify-center">
+                {renderDestinoIcon('perfurado', 'w-4 h-4')}
+              </div>
               <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
                 selectedDestino === 'perfurado' ? 'bg-white/20 text-white' : 'bg-orange-100 text-[#E05328]'
               }`}>
@@ -318,14 +348,16 @@ export const DestinosMateriaisView: React.FC<DestinosMateriaisViewProps> = ({
           {/* Option 2: Revista */}
           <button
             onClick={() => setSelectedDestino('revista')}
-            className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
+            className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer ${
               selectedDestino === 'revista'
                 ? 'bg-[#E05328] text-white border-[#E05328] shadow-sm'
                 : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200'
             }`}
           >
             <div className="flex items-center justify-between w-full">
-              <span className="text-sm">📖</span>
+              <div className="w-5 h-5 flex items-center justify-center">
+                {renderDestinoIcon('revista', 'w-4 h-4')}
+              </div>
               <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
                 selectedDestino === 'revista' ? 'bg-white/20 text-white' : 'bg-orange-100 text-[#E05328]'
               }`}>
@@ -341,14 +373,16 @@ export const DestinosMateriaisView: React.FC<DestinosMateriaisViewProps> = ({
           {/* Option 3: Cartão */}
           <button
             onClick={() => setSelectedDestino('cartao')}
-            className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
+            className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer ${
               selectedDestino === 'cartao'
                 ? 'bg-[#E05328] text-white border-[#E05328] shadow-sm'
                 : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200'
             }`}
           >
             <div className="flex items-center justify-between w-full">
-              <span className="text-sm">📇</span>
+              <div className="w-5 h-5 flex items-center justify-center">
+                {renderDestinoIcon('cartao', 'w-4 h-4')}
+              </div>
               <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
                 selectedDestino === 'cartao' ? 'bg-white/20 text-white' : 'bg-orange-100 text-[#E05328]'
               }`}>
@@ -364,14 +398,16 @@ export const DestinosMateriaisView: React.FC<DestinosMateriaisViewProps> = ({
           {/* Option 4: Santão */}
           <button
             onClick={() => setSelectedDestino('santao')}
-            className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
+            className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer ${
               selectedDestino === 'santao'
                 ? 'bg-[#E05328] text-white border-[#E05328] shadow-sm'
                 : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200'
             }`}
           >
             <div className="flex items-center justify-between w-full">
-              <span className="text-sm">📑</span>
+              <div className="w-5 h-5 flex items-center justify-center">
+                {renderDestinoIcon('santao', 'w-4 h-4')}
+              </div>
               <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
                 selectedDestino === 'santao' ? 'bg-white/20 text-white' : 'bg-orange-100 text-[#E05328]'
               }`}>
@@ -387,14 +423,16 @@ export const DestinosMateriaisView: React.FC<DestinosMateriaisViewProps> = ({
           {/* Option 5: Pragão */}
           <button
             onClick={() => setSelectedDestino('pragao')}
-            className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
+            className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer ${
               selectedDestino === 'pragao'
                 ? 'bg-[#E05328] text-white border-[#E05328] shadow-sm'
                 : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200'
             }`}
           >
             <div className="flex items-center justify-between w-full">
-              <span className="text-sm">🔴</span>
+              <div className="w-5 h-5 flex items-center justify-center">
+                {renderDestinoIcon('pragao', 'w-4 h-4')}
+              </div>
               <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
                 selectedDestino === 'pragao' ? 'bg-white/20 text-white' : 'bg-orange-100 text-[#E05328]'
               }`}>
@@ -410,14 +448,16 @@ export const DestinosMateriaisView: React.FC<DestinosMateriaisViewProps> = ({
           {/* Option 6: Adesivos 15x40 */}
           <button
             onClick={() => setSelectedDestino('adesivos_15x40')}
-            className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
+            className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer ${
               selectedDestino === 'adesivos_15x40'
                 ? 'bg-[#E05328] text-white border-[#E05328] shadow-sm'
                 : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200'
             }`}
           >
             <div className="flex items-center justify-between w-full">
-              <span className="text-sm">🏷️</span>
+              <div className="w-5 h-5 flex items-center justify-center">
+                {renderDestinoIcon('adesivos_15x40', 'w-4 h-4')}
+              </div>
               <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
                 selectedDestino === 'adesivos_15x40' ? 'bg-white/20 text-white' : 'bg-orange-100 text-[#E05328]'
               }`}>
@@ -437,8 +477,8 @@ export const DestinosMateriaisView: React.FC<DestinosMateriaisViewProps> = ({
         <div className="bg-white p-5 lg:p-6 rounded-2xl border border-slate-200 shadow-xs">
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
             <div className="flex items-center gap-3">
-              <div className="text-3xl p-2.5 bg-orange-50 rounded-2xl border border-orange-100">
-                {DESTINOS_CONFIG[selectedDestino].iconeEmoji}
+              <div className="p-3 bg-orange-50 text-[#E05328] rounded-2xl border border-orange-100">
+                {renderDestinoIcon(selectedDestino, 'w-6 h-6')}
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -550,7 +590,9 @@ export const DestinosMateriaisView: React.FC<DestinosMateriaisViewProps> = ({
                   <div>
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2.5">
-                        <span className="text-2xl">{item.iconeEmoji}</span>
+                        <div className="p-2 rounded-xl bg-orange-50 text-[#E05328] border border-orange-100 shrink-0">
+                          {renderDestinoIcon(key, 'w-5 h-5')}
+                        </div>
                         <div>
                           <h4 className="text-sm font-bold text-slate-900">
                             {item.nome}
@@ -562,7 +604,7 @@ export const DestinosMateriaisView: React.FC<DestinosMateriaisViewProps> = ({
                       </div>
                       <button
                         onClick={() => setSelectedDestino(key)}
-                        className="text-xs font-semibold text-[#E05328] hover:text-orange-700 shrink-0"
+                        className="text-xs font-semibold text-[#E05328] hover:text-orange-700 shrink-0 cursor-pointer"
                       >
                         Ver Detalhes →
                       </button>
@@ -785,12 +827,12 @@ export const DestinosMateriaisView: React.FC<DestinosMateriaisViewProps> = ({
               onChange={(e) => setCalcMaterial(e.target.value as any)}
               className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl text-slate-800 font-semibold focus:outline-hidden focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
             >
-              <option value="perfurado">🚗 Perfurado (Vidro Traseiro)</option>
-              <option value="revista">📖 Revista (Tablóides/Informativos)</option>
-              <option value="cartao">📇 Cartão (Mini / QR Code)</option>
-              <option value="santao">📑 Santão (A4 / A5 Grande)</option>
-              <option value="pragao">🔴 Pragão (Adesivo 10cm)</option>
-              <option value="adesivos_15x40">🏷️ Adesivos 15x40 (Para-choque)</option>
+              <option value="perfurado">Perfurado (Vidro Traseiro)</option>
+              <option value="revista">Revista (Tablóides/Informativos)</option>
+              <option value="cartao">Cartão (Mini / QR Code)</option>
+              <option value="santao">Santão (A4 / A5 Grande)</option>
+              <option value="pragao">Pragão (Adesivo 10cm)</option>
+              <option value="adesivos_15x40">Adesivos 15x40 (Para-choque)</option>
             </select>
           </div>
 

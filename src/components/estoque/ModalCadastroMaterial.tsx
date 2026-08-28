@@ -249,18 +249,18 @@ export const ModalCadastroMaterial: React.FC<ModalCadastroMaterialProps> = ({
 
   return (
     <div id="modal-cadastro-material-backdrop" className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
-      <div id="modal-cadastro-material" className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
+      <div id="modal-cadastro-material" className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="bg-[#1A1A1E] text-white px-5 py-3.5 flex items-center justify-between border-b border-slate-800 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#E05328] to-orange-600 flex items-center justify-center text-white shadow-md shadow-orange-950/30">
-              <Boxes className="w-4 h-4 stroke-[2.5]" />
+        <div className="bg-[#1A1A1E] text-white px-4 py-3 flex items-center justify-between border-b border-slate-800 shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#E05328] to-orange-600 flex items-center justify-center text-white shadow-xs">
+              <Boxes className="w-3.5 h-3.5 stroke-[2.5]" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white tracking-tight">
+              <h3 className="text-xs font-bold text-white tracking-tight">
                 {materialParaEditar ? 'Editar Material de Estoque' : 'Cadastrar Novo Material'}
               </h3>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[10px] text-slate-400">
                 {materialParaEditar ? `Atualizando dados de ${materialParaEditar.sku}` : 'Catálogo de armazém e controle de saldo'}
               </p>
             </div>
@@ -269,7 +269,7 @@ export const ModalCadastroMaterial: React.FC<ModalCadastroMaterialProps> = ({
             id="btn-fechar-modal-material"
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -277,15 +277,15 @@ export const ModalCadastroMaterial: React.FC<ModalCadastroMaterialProps> = ({
 
         {/* Error Alert */}
         {errorMsg && (
-          <div className="mx-5 mt-4 p-3 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2.5 text-rose-800 shrink-0">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-            <div className="text-xs font-medium">{errorMsg}</div>
+          <div className="mx-4 mt-3 p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2 text-rose-800 shrink-0">
+            <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+            <div className="text-[11px] font-medium">{errorMsg}</div>
           </div>
         )}
 
         {/* Scrollable Form Body */}
         <form id="form-cadastro-material" onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 text-xs">
             {/* Seção 1: Identificação Básica */}
             <div>
               <h4 className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
@@ -638,12 +638,12 @@ export const ModalCadastroMaterial: React.FC<ModalCadastroMaterialProps> = ({
           </div>
 
           {/* Fixed Footer */}
-          <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2.5 shrink-0">
+          <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2 shrink-0">
             <button
               id="btn-cancelar-material"
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              className="px-3.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
             >
               Cancelar
             </button>
@@ -651,14 +651,14 @@ export const ModalCadastroMaterial: React.FC<ModalCadastroMaterialProps> = ({
               id="btn-salvar-material"
               type="submit"
               disabled={loading}
-              className="px-5 py-2 text-xs font-bold text-white bg-[#E05328] hover:bg-orange-700 rounded-xl shadow-sm disabled:opacity-50 transition-all flex items-center gap-1.5 cursor-pointer"
+              className="px-4 py-1.5 text-xs font-bold text-white bg-[#E05328] hover:bg-orange-700 rounded-xl shadow-xs disabled:opacity-50 transition-all flex items-center gap-1.5 cursor-pointer"
             >
               {loading ? (
                 <span>Salvando...</span>
               ) : (
                 <>
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>{materialParaEditar ? 'Atualizar Material' : 'Cadastrar Material'}</span>
+                  <span>{materialParaEditar ? 'Atualizar' : 'Cadastrar Material'}</span>
                 </>
               )}
             </button>

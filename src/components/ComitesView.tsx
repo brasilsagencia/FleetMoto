@@ -32,6 +32,17 @@ import {
   Tag,
   Check,
   Compass,
+  UserCheck,
+  Share2,
+  Briefcase,
+  Shield,
+  Crown,
+  BookOpen,
+  CreditCard,
+  FileCheck2,
+  Disc,
+  Globe,
+  Users,
 } from 'lucide-react';
 import { Comite, StatusComite, CargoEleitoral, OrigemCliente, RegiaoRota } from '../types';
 import { RotasClienteView } from './rotas-cliente/RotasClienteView';
@@ -49,47 +60,81 @@ import {
   getStatusBadgeClass,
 } from '../utils/formatters';
 
+export const renderMaterialIcon = (matId: string, className = 'w-3.5 h-3.5') => {
+  switch (matId) {
+    case 'perfurado':
+      return <Car className={className} />;
+    case 'revista':
+      return <BookOpen className={className} />;
+    case 'cartao':
+      return <CreditCard className={className} />;
+    case 'santao':
+      return <FileCheck2 className={className} />;
+    case 'pragao':
+      return <Disc className={className} />;
+    case 'adesivos_15x40':
+      return <Tag className={className} />;
+    default:
+      return <Package className={className} />;
+  }
+};
+
+export const renderOrigemIcon = (origemId?: OrigemCliente, className = 'w-3.5 h-3.5') => {
+  switch (origemId) {
+    case 'rosane':
+      return <UserCheck className={className} />;
+    case 'esther':
+      return <Star className={`${className} fill-current`} />;
+    case 'Instagram':
+      return <Share2 className={className} />;
+    case 'descricao':
+      return <FileText className={className} />;
+    case 'CRM':
+      return <Briefcase className={className} />;
+    case 'prata':
+      return <Shield className={className} />;
+    case 'ouro':
+      return <Crown className={`${className} fill-current`} />;
+    default:
+      return <Building2 className={className} />;
+  }
+};
+
 export const OPCOES_MATERIAIS = [
   {
     id: 'perfurado',
     label: 'Perfurado',
     sublabel: 'Vidro Traseiro',
-    icon: '🚗',
     badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200',
   },
   {
     id: 'revista',
     label: 'Revista',
     sublabel: 'Informativo / Tabloide',
-    icon: '📖',
     badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   },
   {
     id: 'cartao',
     label: 'Cartão',
     sublabel: 'Mini / QR Code',
-    icon: '📇',
     badgeClass: 'bg-blue-50 text-blue-700 border-blue-200',
   },
   {
     id: 'santao',
     label: 'Santão',
     sublabel: 'A4 / A5 Grande',
-    icon: '📑',
     badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
   },
   {
     id: 'pragao',
     label: 'Pragão',
     sublabel: 'Adesivo 10cm',
-    icon: '🔴',
     badgeClass: 'bg-rose-50 text-rose-700 border-rose-200',
   },
   {
     id: 'adesivos_15x40',
     label: 'Adesivos 15x40',
     sublabel: 'Para-choque',
-    icon: '🏷️',
     badgeClass: 'bg-purple-50 text-purple-700 border-purple-200',
   },
 ];
@@ -98,7 +143,6 @@ export const OPCOES_ORIGEM: Array<{
   id: OrigemCliente;
   label: string;
   sublabel: string;
-  icon: string;
   badgeClass: string;
   colorClass: string;
 }> = [
@@ -106,7 +150,6 @@ export const OPCOES_ORIGEM: Array<{
     id: 'rosane',
     label: 'Rosane',
     sublabel: 'Indicação Rosane',
-    icon: '🌸',
     badgeClass: 'bg-purple-50 text-purple-800 border-purple-300 font-bold',
     colorClass: 'bg-purple-100 text-purple-800 border-purple-300',
   },
@@ -114,7 +157,6 @@ export const OPCOES_ORIGEM: Array<{
     id: 'esther',
     label: 'Esther',
     sublabel: 'Indicação Esther',
-    icon: '⭐',
     badgeClass: 'bg-fuchsia-50 text-fuchsia-800 border-fuchsia-300 font-bold',
     colorClass: 'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-300',
   },
@@ -122,7 +164,6 @@ export const OPCOES_ORIGEM: Array<{
     id: 'Instagram',
     label: 'Instagram',
     sublabel: 'Redes Sociais / Leads',
-    icon: '📸',
     badgeClass: 'bg-pink-50 text-pink-700 border-pink-200 font-bold',
     colorClass: 'bg-pink-100 text-pink-700 border-pink-300',
   },
@@ -130,7 +171,6 @@ export const OPCOES_ORIGEM: Array<{
     id: 'descricao',
     label: 'Descrição',
     sublabel: 'Detalhamento / Direto',
-    icon: '📝',
     badgeClass: 'bg-teal-50 text-teal-800 border-teal-200 font-bold',
     colorClass: 'bg-teal-100 text-teal-800 border-teal-300',
   },
@@ -138,7 +178,6 @@ export const OPCOES_ORIGEM: Array<{
     id: 'CRM',
     label: 'CRM',
     sublabel: 'Base Corporativa / CRM',
-    icon: '💼',
     badgeClass: 'bg-blue-50 text-blue-700 border-blue-200 font-bold',
     colorClass: 'bg-blue-100 text-blue-700 border-blue-300',
   },
@@ -146,7 +185,6 @@ export const OPCOES_ORIGEM: Array<{
     id: 'prata',
     label: 'Prata',
     sublabel: 'Plano Intermediário',
-    icon: '🥈',
     badgeClass: 'bg-slate-100 text-slate-700 border-slate-300 font-bold',
     colorClass: 'bg-slate-100 text-slate-700 border-slate-300',
   },
@@ -154,7 +192,6 @@ export const OPCOES_ORIGEM: Array<{
     id: 'ouro',
     label: 'Ouro',
     sublabel: 'Prioritário / Especial',
-    icon: '👑',
     badgeClass: 'bg-amber-100 text-amber-800 border-amber-300 font-bold',
     colorClass: 'bg-amber-100 text-amber-800 border-amber-300',
   },
@@ -537,7 +574,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
       <span
         className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${found.badgeClass}`}
       >
-        <span>{found.icon}</span>
+        {renderOrigemIcon(found.id, 'w-3 h-3')}
         <span className="capitalize">{found.label}</span>
       </span>
     );
@@ -768,13 +805,24 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                   Total Geral
                 </p>
-                <h3 className="text-base font-black text-slate-900 mt-0.5">
-                  {comites.length}
-                </h3>
-                <p className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 mt-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  {comites.filter((c) => c.status === 'ativo').length} ativos
-                </p>
+                <div className="flex items-baseline gap-2 mt-0.5">
+                  <h3 className="text-base font-black text-slate-900">
+                    {comites.length}
+                  </h3>
+                  <span className="text-[10px] text-emerald-600 font-medium">
+                    ({comites.filter((c) => c.status === 'ativo').length} ativos)
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 mt-1 text-[9px] font-bold flex-wrap">
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                    <Shield className="w-2.5 h-2.5 text-slate-500" />
+                    {clientesPrataCount} Prata
+                  </span>
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                    <Crown className="w-2.5 h-2.5 text-amber-600 fill-amber-500" />
+                    {clientesOuroCount} Ouro
+                  </span>
+                </div>
               </div>
               <div className="w-8 h-8 rounded-xl bg-orange-50 text-[#E05328] flex items-center justify-center border border-orange-100 shrink-0">
                 <Building2 className="w-3.5 h-3.5" />
@@ -795,7 +843,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                   <p className="text-[10px] font-black text-purple-800 uppercase tracking-wider">
                     Rosane
                   </p>
-                  <span>🌸</span>
+                  <UserCheck className="w-3 h-3 text-purple-600" />
                 </div>
                 <h3 className="text-base font-black text-purple-800 mt-0.5">
                   {clientesRosaneCount}
@@ -804,8 +852,8 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                   {origemFilter === 'rosane' ? 'Filtro ativo' : 'Indicação'}
                 </p>
               </div>
-              <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center border border-purple-200 shrink-0 text-xs">
-                🌸
+              <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center border border-purple-200 shrink-0">
+                <UserCheck className="w-4 h-4" />
               </div>
             </div>
 
@@ -832,8 +880,8 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                   {origemFilter === 'esther' ? 'Filtro ativo' : 'Indicação'}
                 </p>
               </div>
-              <div className="w-8 h-8 rounded-xl bg-fuchsia-100 text-fuchsia-700 flex items-center justify-center border border-fuchsia-200 shrink-0 text-xs">
-                ⭐
+              <div className="w-8 h-8 rounded-xl bg-fuchsia-100 text-fuchsia-700 flex items-center justify-center border border-fuchsia-200 shrink-0">
+                <Star className="w-4 h-4 fill-fuchsia-600 text-fuchsia-600" />
               </div>
             </div>
 
@@ -851,7 +899,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                   <p className="text-[10px] font-bold text-pink-700 uppercase tracking-wider">
                     Instagram
                   </p>
-                  <span>📸</span>
+                  <Share2 className="w-2.5 h-2.5 text-pink-600" />
                 </div>
                 <h3 className="text-base font-black text-pink-700 mt-0.5">
                   {clientesInstagramCount}
@@ -860,8 +908,8 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                   {origemFilter === 'Instagram' ? 'Filtro ativo' : 'Redes'}
                 </p>
               </div>
-              <div className="w-8 h-8 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center border border-pink-200 shrink-0 text-xs">
-                📸
+              <div className="w-8 h-8 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center border border-pink-200 shrink-0">
+                <Share2 className="w-4 h-4" />
               </div>
             </div>
 
@@ -879,7 +927,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                   <p className="text-[10px] font-bold text-teal-800 uppercase tracking-wider">
                     Descrição
                   </p>
-                  <span>📝</span>
+                  <FileText className="w-2.5 h-2.5 text-teal-600" />
                 </div>
                 <h3 className="text-base font-black text-teal-800 mt-0.5">
                   {clientesDescricaoCount}
@@ -888,8 +936,8 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                   {origemFilter === 'descricao' ? 'Filtro ativo' : 'Direto'}
                 </p>
               </div>
-              <div className="w-8 h-8 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center border border-teal-200 shrink-0 text-xs">
-                📝
+              <div className="w-8 h-8 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center border border-teal-200 shrink-0">
+                <FileText className="w-4 h-4" />
               </div>
             </div>
 
@@ -907,7 +955,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                   <p className="text-[10px] font-bold text-blue-800 uppercase tracking-wider">
                     CRM
                   </p>
-                  <span>💼</span>
+                  <Briefcase className="w-2.5 h-2.5 text-blue-600" />
                 </div>
                 <h3 className="text-base font-black text-blue-700 mt-0.5">
                   {clientesCRMCount}
@@ -916,12 +964,12 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                   {origemFilter === 'CRM' ? 'Filtro ativo' : 'Base de dados'}
                 </p>
               </div>
-              <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center border border-blue-200 shrink-0 text-xs">
-                💼
+              <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center border border-blue-200 shrink-0">
+                <Briefcase className="w-4 h-4" />
               </div>
             </div>
 
-            {/* Prata 🥈 */}
+            {/* Prata */}
             <div 
               onClick={() => { setOrigemFilter(origemFilter === 'prata' ? 'todos' : 'prata'); setCurrentPage(1); }}
               className={`p-3 rounded-2xl border shadow-xs flex items-center justify-between cursor-pointer transition-all ${
@@ -935,7 +983,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                   <p className="text-[10px] font-bold text-slate-800 uppercase tracking-wider">
                     Prata
                   </p>
-                  <span>🥈</span>
+                  <Shield className="w-2.5 h-2.5 text-slate-600" />
                 </div>
                 <h3 className="text-base font-black text-slate-800 mt-0.5">
                   {clientesPrataCount}
@@ -944,12 +992,12 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                   {origemFilter === 'prata' ? 'Filtro ativo' : 'Intermediário'}
                 </p>
               </div>
-              <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center border border-slate-300 shrink-0 text-xs">
-                🥈
+              <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center border border-slate-300 shrink-0">
+                <Shield className="w-4 h-4" />
               </div>
             </div>
 
-            {/* Ouro 👑 */}
+            {/* Ouro */}
             <div 
               onClick={() => { setOrigemFilter(origemFilter === 'ouro' ? 'todos' : 'ouro'); setCurrentPage(1); }}
               className={`p-3 rounded-2xl border shadow-xs flex items-center justify-between cursor-pointer transition-all ${
@@ -963,7 +1011,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                   <p className="text-[10px] font-bold text-amber-900 uppercase tracking-wider">
                     Ouro
                   </p>
-                  <span>👑</span>
+                  <Crown className="w-2.5 h-2.5 text-amber-700 fill-amber-500" />
                 </div>
                 <h3 className="text-base font-black text-amber-900 mt-0.5">
                   {clientesOuroCount}
@@ -972,8 +1020,8 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                   {origemFilter === 'ouro' ? 'Filtro ativo' : 'Prioritário'}
                 </p>
               </div>
-              <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center border border-amber-300 shrink-0 text-xs">
-                👑
+              <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center border border-amber-300 shrink-0">
+                <Crown className="w-4 h-4 fill-amber-500 text-amber-700" />
               </div>
             </div>
           </div>
@@ -990,7 +1038,8 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                 </h2>
                 {filtroRegiao !== 'todas' && (
                   <span className="text-xs bg-slate-900 text-white font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                    <span>📍</span> Filtro Rota: {filtroRegiao === 'sem_rota' ? 'Sem Rota' : filtroRegiao}
+                    <MapPin className="w-3 h-3 text-orange-400" />
+                    <span>Filtro Rota: {filtroRegiao === 'sem_rota' ? 'Sem Rota' : filtroRegiao}</span>
                     <button
                       onClick={() => setFiltroRegiao('todas')}
                       className="ml-1 hover:text-rose-300 cursor-pointer"
@@ -1063,12 +1112,12 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                 }}
                 className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-bold focus:outline-hidden focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
               >
-                <option value="todas">📍 Região/Rota: Todas</option>
-                <option value="Zona Norte">🔵 Zona Norte (Azul) ({clientesZonaNorteCount})</option>
-                <option value="Zona Oeste">🟠 Zona Oeste (Laranja) ({clientesZonaOesteCount})</option>
-                <option value="Baixada Fluminense">🟢 Baixada Fluminense (Verde) ({clientesBaixadaCount})</option>
-                <option value="Niterói / São Gonçalo">🟣 Niterói / São Gonçalo (Roxo) ({clientesNiteroiSGCount})</option>
-                <option value="sem_rota">⚠️ Rota não definida ({clientesSemRotaCount})</option>
+                <option value="todas">Região/Rota: Todas</option>
+                <option value="Zona Norte">Zona Norte (Azul) ({clientesZonaNorteCount})</option>
+                <option value="Zona Oeste">Zona Oeste (Laranja) ({clientesZonaOesteCount})</option>
+                <option value="Baixada Fluminense">Baixada Fluminense (Verde) ({clientesBaixadaCount})</option>
+                <option value="Niterói / São Gonçalo">Niterói / São Gonçalo (Roxo) ({clientesNiteroiSGCount})</option>
+                <option value="sem_rota">Rota não definida ({clientesSemRotaCount})</option>
               </select>
             </div>
 
@@ -1084,13 +1133,13 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                 className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-semibold focus:outline-hidden focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
               >
                 <option value="todos">Origem / Indicação: Todas</option>
-                <option value="rosane">🌸 Origem: Rosane</option>
-                <option value="esther">⭐ Indicação: Esther</option>
-                <option value="Instagram">📸 Origem: Instagram</option>
-                <option value="descricao">📝 Origem: Descrição</option>
-                <option value="CRM">💼 Origem: CRM</option>
-                <option value="prata">🥈 Origem: Prata</option>
-                <option value="ouro">👑 Origem: Ouro</option>
+                <option value="rosane">Origem: Rosane</option>
+                <option value="esther">Indicação: Esther</option>
+                <option value="Instagram">Origem: Instagram</option>
+                <option value="descricao">Origem: Descrição</option>
+                <option value="CRM">Origem: CRM</option>
+                <option value="prata">Origem: Prata</option>
+                <option value="ouro">Origem: Ouro</option>
               </select>
             </div>
 
@@ -1198,7 +1247,13 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                               ? 'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-300'
                               : 'bg-orange-100 text-[#E05328] border-orange-200'
                           }`}>
-                            {comite.origemCliente === 'esther' ? '⭐' : comite.nome ? comite.nome.slice(0, 2).toUpperCase() : 'CL'}
+                            {comite.origemCliente === 'esther' ? (
+                              <Star className="w-4 h-4 fill-fuchsia-700 text-fuchsia-700" />
+                            ) : comite.nome ? (
+                              comite.nome.slice(0, 2).toUpperCase()
+                            ) : (
+                              'CL'
+                            )}
                           </div>
                           <div>
                             <div className="flex items-center gap-1.5 flex-wrap">
@@ -1331,9 +1386,9 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                               return (
                                 <span
                                   key={matId}
-                                  className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${opt.badgeClass}`}
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${opt.badgeClass}`}
                                 >
-                                  <span>{opt.icon}</span>
+                                  {renderMaterialIcon(matId, 'w-3 h-3')}
                                   <span>{opt.label}</span>
                                 </span>
                               );
@@ -1543,7 +1598,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <span>🌸</span>
+                <UserCheck className="w-3.5 h-3.5" />
                 <span>Rosane / Origem</span>
               </button>
 
@@ -1556,7 +1611,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <span>📍</span>
+                <MapPin className="w-3.5 h-3.5" />
                 <span>Agendamento</span>
               </button>
 
@@ -1569,7 +1624,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <span>📦</span>
+                <Package className="w-3.5 h-3.5" />
                 <span>Materiais</span>
               </button>
 
@@ -1582,7 +1637,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <span>📝</span>
+                <FileText className="w-3.5 h-3.5" />
                 <span>Descrição</span>
               </button>
             </div>
@@ -1611,7 +1666,9 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                                   : 'border-slate-200 bg-slate-50/70 hover:bg-white hover:border-slate-300'
                               }`}
                             >
-                              <span className="text-base">{origem.icon}</span>
+                              <div className="shrink-0">
+                                {renderOrigemIcon(origem.id, 'w-4 h-4')}
+                              </div>
                               <div className="min-w-0">
                                 <p className="text-xs font-bold truncate">
                                   {origem.label}
@@ -1960,13 +2017,16 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                               >
                                 {isChecked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
                               </div>
-                              <div className="min-w-0">
-                                <p className="text-[11px] font-bold text-slate-800 truncate">
-                                  {mat.icon} {mat.label}
-                                </p>
-                                <p className="text-[9px] text-slate-400 truncate">
-                                  {mat.sublabel}
-                                </p>
+                              <div className="min-w-0 flex items-center gap-1.5">
+                                {renderMaterialIcon(mat.id, 'w-3.5 h-3.5 text-slate-700')}
+                                <div>
+                                  <p className="text-[11px] font-bold text-slate-800 truncate">
+                                    {mat.label}
+                                  </p>
+                                  <p className="text-[9px] text-slate-400 truncate">
+                                    {mat.sublabel}
+                                  </p>
+                                </div>
                               </div>
                             </button>
                           );
@@ -2242,9 +2302,11 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                       return (
                         <div
                           key={matId}
-                          className={`p-2 rounded-lg border flex items-center gap-1.5 ${opt.badgeClass}`}
+                          className={`p-2 rounded-lg border flex items-center gap-2 ${opt.badgeClass}`}
                         >
-                          <span className="text-base">{opt.icon}</span>
+                          <div className="shrink-0">
+                            {renderMaterialIcon(matId, 'w-4 h-4')}
+                          </div>
                           <div>
                             <p className="font-bold text-xs">{opt.label}</p>
                             <p className="text-[9px] opacity-80">{opt.sublabel}</p>
