@@ -217,9 +217,9 @@ export const EstoqueView: React.FC<EstoqueViewProps> = ({
 
     // Entradas e Saídas hoje
     const todayStr = new Date().toISOString().slice(0, 10);
-    const movsHoje = movimentacoes.filter((mov) => mov.createdAt.startsWith(todayStr));
-    const entradasHoje = movsHoje.filter((m) => m.tipo === 'entrada').reduce((a, b) => a + b.quantidade, 0);
-    const saidasHoje = movsHoje.filter((m) => m.tipo === 'saida').reduce((a, b) => a + b.quantidade, 0);
+    const movsHoje = movimentacoes.filter((mov) => (mov.createdAt || '').startsWith(todayStr));
+    const entradasHoje = movsHoje.filter((m) => m.tipo === 'entrada').reduce((a, b) => a + (b.quantidade || 0), 0);
+    const saidasHoje = movsHoje.filter((m) => m.tipo === 'saida').reduce((a, b) => a + (b.quantidade || 0), 0);
 
     return {
       totalMateriais: materiais.length,
@@ -243,13 +243,14 @@ export const EstoqueView: React.FC<EstoqueViewProps> = ({
       const statusObj = formatStatusEstoque(saldo, m.estoqueMinimo);
 
       // Search match
+      const q = searchTerm.toLowerCase();
       const matchSearch =
-        m.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        m.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (m.nome || '').toLowerCase().includes(q) ||
+        (m.sku || '').toLowerCase().includes(q) ||
         (m.codigoBarras && m.codigoBarras.includes(searchTerm)) ||
-        (m.candidato && m.candidato.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (m.fornecedor && m.fornecedor.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (m.lote && m.lote.toLowerCase().includes(searchTerm.toLowerCase()));
+        (m.candidato && m.candidato.toLowerCase().includes(q)) ||
+        (m.fornecedor && m.fornecedor.toLowerCase().includes(q)) ||
+        (m.lote && m.lote.toLowerCase().includes(q));
 
       // Category match
       const matchCat = categoriaFilter === 'todas' || m.categoria === categoriaFilter;
@@ -265,11 +266,12 @@ export const EstoqueView: React.FC<EstoqueViewProps> = ({
   // Filtered Movimentações
   const movimentacoesFiltradas = useMemo(() => {
     return movimentacoes.filter((mov) => {
+      const q = searchTerm.toLowerCase();
       const matchSearch =
-        mov.materialNome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        mov.materialSku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (mov.motivo && mov.motivo.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (mov.usuarioNome && mov.usuarioNome.toLowerCase().includes(searchTerm.toLowerCase()));
+        (mov.materialNome || '').toLowerCase().includes(q) ||
+        (mov.materialSku || '').toLowerCase().includes(q) ||
+        (mov.motivo && mov.motivo.toLowerCase().includes(q)) ||
+        (mov.usuarioNome && mov.usuarioNome.toLowerCase().includes(q));
 
       const matchTipo = tipoMovimentacaoFilter === 'todos' || mov.tipo === tipoMovimentacaoFilter;
 

@@ -136,7 +136,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       highlight: true,
     },
     { id: 'usuarios' as TabType, label: 'Usuários & Acessos', icon: ShieldCheck },
-    { id: 'auditoria' as TabType, label: 'Logs de Auditoria (Firestore)', icon: FileCheck, badge: 'Real-time' },
+    { id: 'auditoria' as TabType, label: 'Histórico & Auditoria', icon: FileCheck, badge: 'Real-time' },
     { id: 'configuracoes' as TabType, label: 'Configurações', icon: Settings },
   ];
 

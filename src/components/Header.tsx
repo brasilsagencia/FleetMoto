@@ -122,8 +122,8 @@ export const Header: React.FC<HeaderProps> = ({
         };
       case 'auditoria':
         return {
-          title: 'Logs de Auditoria & Trilha de Segurança',
-          subtitle: 'Registros completos em tempo real gravados no Cloud Firestore',
+          title: 'Histórico & Logs de Auditoria',
+          subtitle: 'Rastreabilidade completa e trilha de segurança gravada no Cloud Firestore',
         };
       case 'configuracoes':
         return {

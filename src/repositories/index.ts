@@ -238,13 +238,13 @@ export class BaseRepository<T extends BaseEntity> {
     const docRef = doc(db, this.collectionName, id);
     const nowIso = new Date().toISOString();
     
-    await updateDoc(docRef, {
+    await setDoc(docRef, {
       isDeleted: true,
       deletedAt: nowIso,
       deletedBy: currentUserId || 'sistema',
       updatedAt: nowIso,
       updatedBy: currentUserId || 'sistema'
-    });
+    }, { merge: true });
 
     this.logAudit({
       acao: 'DELETE',
@@ -310,21 +310,25 @@ export class UsuariosRepository extends BaseRepository<UsuarioDoc> {
   }
 
   async checkDuplicate(email: string, cpf?: string, excludeId?: string): Promise<{ isDuplicate: boolean; field?: string }> {
-    const colRef = collection(db, this.collectionName);
-    if (email) {
-      const qEmail = query(colRef, where('email', '==', email.trim().toLowerCase()), where('isDeleted', '==', false));
-      const snap = await getDocs(qEmail);
-      const match = snap.docs.find(d => d.id !== excludeId);
-      if (match) return { isDuplicate: true, field: 'E-mail' };
+    try {
+      const all = await this.getAll();
+      const cleanEmail = (email || '').trim().toLowerCase();
+      const cleanCpf = (cpf || '').replace(/\D/g, '');
+
+      for (const u of all) {
+        if (excludeId && u.id === excludeId) continue;
+        if (cleanEmail && u.email && u.email.trim().toLowerCase() === cleanEmail) {
+          return { isDuplicate: true, field: 'E-mail' };
+        }
+        if (cleanCpf && (u as any).cpf && (u as any).cpf.replace(/\D/g, '') === cleanCpf) {
+          return { isDuplicate: true, field: 'CPF' };
+        }
+      }
+      return { isDuplicate: false };
+    } catch (e) {
+      console.warn('Error in UsuariosRepository.checkDuplicate:', e);
+      return { isDuplicate: false };
     }
-    if (cpf) {
-      const cleanCpf = cpf.replace(/\D/g, '');
-      const qCpf = query(colRef, where('cpf', '==', cleanCpf), where('isDeleted', '==', false));
-      const snap = await getDocs(qCpf);
-      const match = snap.docs.find(d => d.id !== excludeId);
-      if (match) return { isDuplicate: true, field: 'CPF' };
-    }
-    return { isDuplicate: false };
   }
 }
 
@@ -334,33 +338,29 @@ export class MotoboysRepository extends BaseRepository<MotoboyDoc> {
   }
 
   async checkDuplicate(cpf: string, telefone: string, placaMoto?: string, excludeId?: string): Promise<{ isDuplicate: boolean; field?: string }> {
-    const colRef = collection(db, this.collectionName);
-    const cleanCpf = cpf.replace(/\D/g, '');
-    const cleanTel = telefone.replace(/\D/g, '');
+    try {
+      const all = await this.getAll();
+      const cleanCpf = (cpf || '').replace(/\D/g, '');
+      const cleanTel = (telefone || '').replace(/\D/g, '');
+      const cleanPlaca = (placaMoto || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
 
-    if (cleanCpf) {
-      const q = query(colRef, where('cpf', '==', cleanCpf), where('isDeleted', '==', false));
-      const snap = await getDocs(q);
-      const match = snap.docs.find(d => d.id !== excludeId);
-      if (match) return { isDuplicate: true, field: 'CPF' };
+      for (const m of all) {
+        if (excludeId && m.id === excludeId) continue;
+        if (cleanCpf && m.cpf && m.cpf.replace(/\D/g, '') === cleanCpf) {
+          return { isDuplicate: true, field: 'CPF' };
+        }
+        if (cleanTel && m.telefone && m.telefone.replace(/\D/g, '') === cleanTel) {
+          return { isDuplicate: true, field: 'Telefone' };
+        }
+        if (cleanPlaca && m.placaMoto && m.placaMoto.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() === cleanPlaca) {
+          return { isDuplicate: true, field: 'Placa da Moto' };
+        }
+      }
+      return { isDuplicate: false };
+    } catch (e) {
+      console.warn('Error in MotoboysRepository.checkDuplicate:', e);
+      return { isDuplicate: false };
     }
-
-    if (cleanTel) {
-      const q = query(colRef, where('telefone', '==', cleanTel), where('isDeleted', '==', false));
-      const snap = await getDocs(q);
-      const match = snap.docs.find(d => d.id !== excludeId);
-      if (match) return { isDuplicate: true, field: 'Telefone' };
-    }
-
-    if (placaMoto) {
-      const cleanPlaca = placaMoto.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-      const q = query(colRef, where('placaMoto', '==', cleanPlaca), where('isDeleted', '==', false));
-      const snap = await getDocs(q);
-      const match = snap.docs.find(d => d.id !== excludeId);
-      if (match) return { isDuplicate: true, field: 'Placa da Moto' };
-    }
-
-    return { isDuplicate: false };
   }
 }
 
@@ -370,24 +370,25 @@ export class ClientesRepository extends BaseRepository<ClienteDoc> {
   }
 
   async checkDuplicate(telefone: string, cnpjCampanha?: string, excludeId?: string): Promise<{ isDuplicate: boolean; field?: string }> {
-    const colRef = collection(db, this.collectionName);
-    const cleanTel = telefone.replace(/\D/g, '');
-    if (cleanTel) {
-      const q = query(colRef, where('telefone', '==', cleanTel), where('isDeleted', '==', false));
-      const snap = await getDocs(q);
-      const match = snap.docs.find(d => d.id !== excludeId);
-      if (match) return { isDuplicate: true, field: 'Telefone' };
-    }
-    if (cnpjCampanha) {
-      const cleanCnpj = cnpjCampanha.replace(/\D/g, '');
-      if (cleanCnpj) {
-        const q = query(colRef, where('cnpjCampanha', '==', cleanCnpj), where('isDeleted', '==', false));
-        const snap = await getDocs(q);
-        const match = snap.docs.find(d => d.id !== excludeId);
-        if (match) return { isDuplicate: true, field: 'CNPJ' };
+    try {
+      const all = await this.getAll();
+      const cleanTel = (telefone || '').replace(/\D/g, '');
+      const cleanCnpj = (cnpjCampanha || '').replace(/\D/g, '');
+
+      for (const c of all) {
+        if (excludeId && c.id === excludeId) continue;
+        if (cleanTel && c.telefone && c.telefone.replace(/\D/g, '') === cleanTel) {
+          return { isDuplicate: true, field: 'Telefone' };
+        }
+        if (cleanCnpj && c.cnpjCampanha && c.cnpjCampanha.replace(/\D/g, '') === cleanCnpj) {
+          return { isDuplicate: true, field: 'CNPJ' };
+        }
       }
+      return { isDuplicate: false };
+    } catch (e) {
+      console.warn('Error in ClientesRepository.checkDuplicate:', e);
+      return { isDuplicate: false };
     }
-    return { isDuplicate: false };
   }
 }
 
@@ -397,11 +398,14 @@ export class VeiculosRepository extends BaseRepository<VeiculoDoc> {
   }
 
   async checkDuplicatePlaca(placa: string, excludeId?: string): Promise<boolean> {
-    const colRef = collection(db, this.collectionName);
-    const cleanPlaca = placa.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    const q = query(colRef, where('placa', '==', cleanPlaca), where('isDeleted', '==', false));
-    const snap = await getDocs(q);
-    return snap.docs.some(d => d.id !== excludeId);
+    try {
+      const all = await this.getAll();
+      const cleanPlaca = (placa || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+      return all.some(v => (!excludeId || v.id !== excludeId) && v.placa && v.placa.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() === cleanPlaca);
+    } catch (e) {
+      console.warn('Error in VeiculosRepository.checkDuplicatePlaca:', e);
+      return false;
+    }
   }
 }
 

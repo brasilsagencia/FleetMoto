@@ -43,7 +43,10 @@ import {
   Lock,
   Phone,
   Building2,
-  Hash
+  Hash,
+  History,
+  Download,
+  ExternalLink
 } from 'lucide-react';
 import {
   Expedicao,
@@ -934,9 +937,297 @@ export const ExpedicaoView: React.FC<ExpedicaoViewProps> = ({
           <Navigation className="w-4 h-4" />
           Agrupamento em Rotas ({rotas.length})
         </button>
+
+        <button
+          onClick={() => setActiveTab('historico_notas')}
+          className={`px-4 py-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${
+            activeTab === 'historico_notas'
+              ? 'border-amber-600 text-amber-700'
+              : 'border-transparent text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <History className="w-4 h-4" />
+          Histórico de Expedição ({expedicoes.filter((e) => e.status === 'liberado_entrega' || e.status === 'em_rota' || e.notaEntrega?.emitida).length})
+        </button>
       </div>
 
-      {/* Main Tab: Fila de Expedição */}
+      {/* Main Tab: Histórico de Expedição & Notas/Romaneios */}
+      {activeTab === 'historico_notas' && (
+        <div className="space-y-4">
+          {/* Top KPI Cards */}
+          {(() => {
+            const expHistorico = expedicoes.filter(
+              (e) =>
+                e.status === 'liberado_entrega' ||
+                e.status === 'em_rota' ||
+                e.notaEntrega?.emitida ||
+                e.conferencia?.resultado === 'aprovado'
+            );
+            const totalVol = expHistorico.reduce((acc, curr) => acc + (curr.conferencia?.volumes || 1), 0);
+            const totalPeso = expHistorico.reduce((acc, curr) => acc + (curr.conferencia?.pesoKg || 0), 0);
+            const notasEmitidas = expHistorico.filter((e) => e.notaEntrega?.emitida).length;
+
+            return (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-500">Expedições Concluídas</span>
+                    <History className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <p className="text-2xl font-black text-slate-900">{expHistorico.length}</p>
+                  <p className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> 100% conferidos e despachados
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-500">Romaneios / Notas</span>
+                    <FileText className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <p className="text-2xl font-black text-slate-900">{notasEmitidas}</p>
+                  <p className="text-[11px] text-slate-500">Documentos fiscais emitidos</p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-500">Volumes Despachados</span>
+                    <Boxes className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <p className="text-2xl font-black text-slate-900">{totalVol} vol</p>
+                  <p className="text-[11px] text-slate-500">Peso total: {totalPeso.toFixed(1)} kg</p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-500">Motoboys Vinculados</span>
+                    <Truck className="w-4 h-4 text-purple-600" />
+                  </div>
+                  <p className="text-2xl font-black text-slate-900">
+                    {new Set(expHistorico.map((e) => e.liberacao?.motoboyNome).filter(Boolean)).size}
+                  </p>
+                  <p className="text-[11px] text-slate-500">Entregadores acionados</p>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Filters Bar */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+            <div className="relative md:col-span-2">
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Buscar por Nº Pedido, Romaneio, Comitê, Lacre ou Motoboy..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:bg-white focus:ring-2 focus:ring-amber-500/20"
+              />
+            </div>
+
+            <div>
+              <select
+                value={zonaFilter}
+                onChange={(e) => setZonaFilter(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700"
+              >
+                <option value="todas">Todas as Zonas / Regiões</option>
+                <option value="Zona Norte">Zona Norte (Azul)</option>
+                <option value="Zona Oeste">Zona Oeste (Laranja)</option>
+                <option value="Baixada Fluminense">Baixada Fluminense (Verde)</option>
+                <option value="Niterói / São Gonçalo">Niterói / São Gonçalo (Roxo)</option>
+              </select>
+            </div>
+
+            <div>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700"
+              >
+                <option value="todos">Todos os Status</option>
+                <option value="liberado_entrega">Liberado para Entrega</option>
+                <option value="em_rota">Em Rota de Entrega</option>
+                <option value="pronto_expedicao">Pronto para Expedição</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Histórico Table */}
+          {(() => {
+            const expHistoricoFiltradas = expedicoes.filter((e) => {
+              // Only include dispatched or completed expeditions in history
+              const isHistoricoItem =
+                e.status === 'liberado_entrega' ||
+                e.status === 'em_rota' ||
+                e.notaEntrega?.emitida ||
+                e.conferencia?.resultado === 'aprovado';
+
+              if (!isHistoricoItem) return false;
+
+              const q = searchTerm.toLowerCase();
+              const matchSearch =
+                (e.numeroPedido || '').toLowerCase().includes(q) ||
+                (e.clienteNome || '').toLowerCase().includes(q) ||
+                (e.candidato || '').toLowerCase().includes(q) ||
+                (e.bairro || '').toLowerCase().includes(q) ||
+                (e.liberacao?.motoboyNome || '').toLowerCase().includes(q) ||
+                (e.notaEntrega?.numeroNota || '').toLowerCase().includes(q) ||
+                (e.conferencia?.lacre || '').toLowerCase().includes(q);
+
+              const matchZona = zonaFilter === 'todas' || e.zonaEntrega === zonaFilter;
+              const matchStatus = statusFilter === 'todos' || e.status === statusFilter;
+
+              return matchSearch && matchZona && matchStatus;
+            });
+
+            if (expHistoricoFiltradas.length === 0) {
+              return (
+                <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
+                    <History className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-900">Nenhum registro no histórico de expedição</h3>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    Assim que pedidos forem conferidos, tiverem romaneios emitidos ou forem liberados para entrega, eles aparecerão aqui com comprovantes e rastreamento completo.
+                  </p>
+                </div>
+              );
+            }
+
+            return (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="p-3.5">Pedido / Romaneio</th>
+                        <th className="p-3.5">Comitê & Candidato</th>
+                        <th className="p-3.5">Zona & Bairro</th>
+                        <th className="p-3.5">Motoboy / Retirada</th>
+                        <th className="p-3.5">Volumes & Lacres</th>
+                        <th className="p-3.5">Data / Horário</th>
+                        <th className="p-3.5">Status</th>
+                        <th className="p-3.5 text-right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {expHistoricoFiltradas.map((exp) => {
+                        const st = formatStatusExpedicao(exp.status);
+                        return (
+                          <tr key={exp.id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="p-3.5">
+                              <div className="space-y-0.5">
+                                <span className="font-mono font-bold text-slate-900">{exp.numeroPedido}</span>
+                                {exp.notaEntrega?.numeroNota && (
+                                  <div className="flex items-center gap-1 text-[10px] text-blue-700 font-bold">
+                                    <FileText className="w-3 h-3" />
+                                    <span>Nota {exp.notaEntrega.numeroNota}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+
+                            <td className="p-3.5">
+                              <div className="space-y-0.5">
+                                <p className="font-bold text-slate-900">{exp.clienteNome}</p>
+                                <p className="text-[10px] text-slate-500">{exp.candidato}</p>
+                              </div>
+                            </td>
+
+                            <td className="p-3.5">
+                              <div className="space-y-0.5">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                                  {exp.zonaEntrega || 'Zona Principal'}
+                                </span>
+                                <p className="text-[10px] text-slate-500 truncate max-w-[140px]">{exp.bairro}</p>
+                              </div>
+                            </td>
+
+                            <td className="p-3.5">
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-1 font-bold text-slate-800">
+                                  <Truck className="w-3 h-3 text-slate-400" />
+                                  <span>{exp.liberacao?.motoboyNome || 'Não informado'}</span>
+                                </div>
+                                {exp.liberacao?.documento && (
+                                  <p className="text-[10px] text-slate-400 font-mono">{exp.liberacao.documento}</p>
+                                )}
+                              </div>
+                            </td>
+
+                            <td className="p-3.5">
+                              <div className="space-y-0.5">
+                                <span className="font-bold text-slate-800">
+                                  {exp.conferencia?.volumes || 1} vol • {exp.conferencia?.pesoKg || 0} kg
+                                </span>
+                                {exp.conferencia?.lacre && (
+                                  <p className="text-[10px] text-purple-700 font-mono flex items-center gap-1">
+                                    <Lock className="w-2.5 h-2.5" /> {exp.conferencia.lacre}
+                                  </p>
+                                )}
+                              </div>
+                            </td>
+
+                            <td className="p-3.5">
+                              <div className="space-y-0.5">
+                                <span className="text-slate-900 font-medium">
+                                  {exp.liberacao?.dataHoraSaida
+                                    ? formatDateTime(exp.liberacao.dataHoraSaida)
+                                    : exp.conferencia?.dataHoraConferencia
+                                    ? formatDateTime(exp.conferencia.dataHoraConferencia)
+                                    : formatDate(exp.dataPrevisao)}
+                                </span>
+                                {exp.liberacao?.horarioSaida && (
+                                  <p className="text-[10px] text-slate-400 font-mono">Saída: {exp.liberacao.horarioSaida}h</p>
+                                )}
+                              </div>
+                            </td>
+
+                            <td className="p-3.5">
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border ${st.bg} ${st.text} ${st.border}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
+                                {st.label}
+                              </span>
+                            </td>
+
+                            <td className="p-3.5 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => {
+                                    setSelectedExpedicao(exp);
+                                    setIsNotaPrintModalOpen(true);
+                                  }}
+                                  title="Ver / Imprimir Romaneio"
+                                  className="px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                                >
+                                  <Printer className="w-3 h-3" />
+                                  <span>Romaneio</span>
+                                </button>
+
+                                <button
+                                  onClick={() => {
+                                    setSelectedExpedicao(exp);
+                                    setIsReimprimirModalOpen(true);
+                                  }}
+                                  title="Reimprimir ou Ver Justificativa"
+                                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer"
+                                >
+                                  <RefreshCw className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
       {activeTab === 'fila' && (
         <div className="space-y-4">
           {/* Filters and Search Bar */}

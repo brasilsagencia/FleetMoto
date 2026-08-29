@@ -31,6 +31,8 @@ import {
   Check,
   ChevronDown,
   Flame,
+  History,
+  X,
 } from 'lucide-react';
 import {
   Comite,
@@ -1488,8 +1490,15 @@ export const RotasClienteView: React.FC<RotasClienteViewProps> = ({
 
                         <div className="p-2.5 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col justify-center gap-1">
                           <button
+                            onClick={() => setModalHistoricoRota(rota)}
+                            className="w-full py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-[10px] font-bold flex items-center justify-center gap-1 cursor-pointer"
+                          >
+                            <History className="w-3 h-3 text-blue-600" /> Histórico
+                          </button>
+
+                          <button
                             onClick={() => setModalDuplicarRota(rota)}
-                            className="w-full py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-[10px] font-bold flex items-center justify-center gap-1"
+                            className="w-full py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-[10px] font-bold flex items-center justify-center gap-1 cursor-pointer"
                           >
                             <Copy className="w-3 h-3 text-[#E05328]" /> Duplicar Rota
                           </button>
@@ -1574,6 +1583,115 @@ export const RotasClienteView: React.FC<RotasClienteViewProps> = ({
           onClose={() => setModalDuplicarRota(null)}
           onConfirm={handleConfirmarDuplicacao}
         />
+      )}
+
+      {/* MODAL DE HISTÓRICO E AUDITORIA DA ROTA */}
+      {modalHistoricoRota && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="p-2 bg-orange-100 text-[#E05328] rounded-xl">
+                  <History className="w-5 h-5" />
+                </span>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">
+                    Histórico & Trilha de Auditoria da Rota
+                  </h2>
+                  <p className="text-xs text-slate-500 font-mono">
+                    {modalHistoricoRota.nomeRota} • ID: {modalHistoricoRota.id.slice(0, 8)}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setModalHistoricoRota(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* General Route Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold">Status Atual</p>
+                <span className="font-bold text-slate-900">{modalHistoricoRota.status.toUpperCase()}</span>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold">Criado Em</p>
+                <span className="font-bold text-slate-900">
+                  {modalHistoricoRota.criadoEm ? new Date(modalHistoricoRota.criadoEm).toLocaleDateString('pt-BR') : '-'}
+                </span>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold">Motoboy</p>
+                <span className="font-bold text-slate-900 truncate">{modalHistoricoRota.motoboyNome || 'Não atribuído'}</span>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold">Paradas</p>
+                <span className="font-bold text-slate-900">{modalHistoricoRota.paradas?.length || 0} pontos</span>
+              </div>
+            </div>
+
+            {/* Timeline of Changes / Alterações */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Eventos e Alterações Registradas
+              </h4>
+
+              <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                {modalHistoricoRota.historicoAlteracoes && modalHistoricoRota.historicoAlteracoes.length > 0 ? (
+                  modalHistoricoRota.historicoAlteracoes.map((item, idx) => (
+                    <div
+                      key={item.id || idx}
+                      className="p-3 bg-white rounded-xl border border-slate-200 space-y-1 text-xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-900">{item.descricao}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {new Date(item.dataHora).toLocaleString('pt-BR')}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600">
+                        Responsável: <strong>{item.usuarioNome || 'Operador'}</strong>
+                      </p>
+                      {item.detalhes && (
+                        <p className="text-[10px] text-slate-500 bg-slate-50 p-1.5 rounded border border-slate-100">
+                          {item.detalhes}
+                        </p>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-2">
+                    <div className="flex items-center gap-2 text-emerald-700 font-bold">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Rota inicializada e registrada com integridade</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Criada em {new Date(modalHistoricoRota.criadoEm || Date.now()).toLocaleString('pt-BR')} por {modalHistoricoRota.criadoPorNome || 'Operador Logístico'}.
+                    </p>
+                    {modalHistoricoRota.paradas?.filter((p) => p.status === 'Entregue').map((p) => (
+                      <div key={p.id} className="text-[11px] text-emerald-800 bg-emerald-50 p-2 rounded border border-emerald-200 flex items-center justify-between">
+                        <span>Parada #{p.ordemSequencia} ({p.nomeDestinatario}) concluída</span>
+                        <span className="font-mono font-bold">Entregue</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-slate-100">
+              <button
+                onClick={() => setModalHistoricoRota(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* MODAL DE RELATÓRIO CONSOLIDADO */}

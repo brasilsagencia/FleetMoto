@@ -14,11 +14,16 @@ import {
   DollarSign,
   Package,
   Layers,
+  ExternalLink,
 } from 'lucide-react';
 import { ItemRelatorioCentral, ModeloRelatorioConfig, FiltrosRelatorioCentral } from '../../types';
 import { formatCurrency, formatDate, formatNumber } from '../../utils/formatters';
 import { printElementById } from '../../utils/printHelper';
-import { exportElementToPdf } from '../../utils/pdfGenerator';
+import {
+  downloadRelatorioPdf,
+  printRelatorioPdf,
+  buildRelatorioJsPdf,
+} from '../../utils/pdfGenerator';
 
 interface RelatorioPdfModalProps {
   isOpen: boolean;
@@ -73,34 +78,73 @@ export const RelatorioPdfModal: React.FC<RelatorioPdfModalProps> = ({
 
   const handlePrint = () => {
     setFeedbackMsg(null);
-    try {
-      printElementById('area-impressao-relatorio-pdf', {
-        title: `Relatorio_${modeloAtivo.numero}_${modeloAtivo.id}`,
-        orientation: orientacao,
-      });
-    } catch (err: any) {
-      console.error('[RelatorioPdfModal] Falha na impressão:', err);
-      setFeedbackMsg({
-        tipo: 'erro',
-        texto: 'Não foi possível acionar a impressora diretamente. Clique em "Baixar PDF" para gerar o arquivo.',
-      });
-    }
-  };
-
-  const handleDownloadPdf = async () => {
     setIsGeneratingPdf(true);
-    setFeedbackMsg(null);
     try {
-      const result = await exportElementToPdf('area-impressao-relatorio-pdf', {
-        fileName: `Relatorio_FleetMoto_${modeloAtivo.numero}_${Date.now()}.pdf`,
-        orientation: orientacao,
-        title: modeloAtivo.titulo,
+      // Executa a impressão com o PDF gerado diretamente em alta definição
+      const result = printRelatorioPdf({
+        modeloAtivo,
+        itens,
+        usuarioAtualNome,
+        orientacao,
+        tipoVisualizacao,
+        incluirValores,
+        incluirAssinaturas,
+        observacoesPersonalizadas,
+        codigoAutenticacao,
+        dataEmissao,
       });
 
       if (result.success) {
         setFeedbackMsg({
           tipo: 'sucesso',
-          texto: 'PDF gerado e baixado com sucesso!',
+          texto: 'Comando de impressão acionado com sucesso!',
+        });
+      } else {
+        // Fallback para impressão direta do DOM
+        printElementById('area-impressao-relatorio-pdf', {
+          title: `Relatorio_${modeloAtivo.numero}_${modeloAtivo.id}`,
+          orientation: orientacao,
+        });
+        setFeedbackMsg({
+          tipo: 'sucesso',
+          texto: 'Janela de impressão aberta.',
+        });
+      }
+    } catch (err: any) {
+      console.error('[RelatorioPdfModal] Falha na impressão:', err);
+      // Em caso de restrição do navegador, gera o arquivo diretamente
+      handleDownloadPdf();
+      setFeedbackMsg({
+        tipo: 'sucesso',
+        texto: 'O documento PDF foi baixado para o seu dispositivo para impressão direta.',
+      });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  const handleDownloadPdf = () => {
+    setIsGeneratingPdf(true);
+    setFeedbackMsg(null);
+    try {
+      const result = downloadRelatorioPdf({
+        modeloAtivo,
+        itens,
+        usuarioAtualNome,
+        orientacao,
+        tipoVisualizacao,
+        incluirValores,
+        incluirAssinaturas,
+        observacoesPersonalizadas,
+        codigoAutenticacao,
+        dataEmissao,
+        fileName: `Relatorio_FleetMoto_Mod${modeloAtivo.numero}_${Date.now()}.pdf`,
+      });
+
+      if (result.success) {
+        setFeedbackMsg({
+          tipo: 'sucesso',
+          texto: 'Arquivo PDF gerado e baixado com sucesso!',
         });
       } else {
         setFeedbackMsg({
@@ -115,6 +159,28 @@ export const RelatorioPdfModal: React.FC<RelatorioPdfModalProps> = ({
       });
     } finally {
       setIsGeneratingPdf(false);
+    }
+  };
+
+  const handleOpenInNewTab = () => {
+    try {
+      const doc = buildRelatorioJsPdf({
+        modeloAtivo,
+        itens,
+        usuarioAtualNome,
+        orientacao,
+        tipoVisualizacao,
+        incluirValores,
+        incluirAssinaturas,
+        observacoesPersonalizadas,
+        codigoAutenticacao,
+        dataEmissao,
+      });
+      const blob = doc.output('blob');
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+    } catch (err: any) {
+      console.error('Erro ao abrir PDF:', err);
     }
   };
 
@@ -425,7 +491,7 @@ export const RelatorioPdfModal: React.FC<RelatorioPdfModalProps> = ({
                               {it.dataHoraFormatada || formatDate(it.dataHora)}
                             </td>
                             <td className="p-2 font-mono font-bold text-slate-900 whitespace-nowrap">
-                              {it.numeroPedido || it.id.slice(0, 8)}
+                              {it.numeroPedido ? `#${it.numeroPedido}` : it.id.slice(0, 8)}
                             </td>
                             <td className="p-2 text-slate-800 font-medium max-w-[150px] truncate">
                               {it.clienteNome || '-'}
@@ -534,13 +600,24 @@ export const RelatorioPdfModal: React.FC<RelatorioPdfModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="bg-slate-50 p-4 border-t border-slate-200 flex items-center justify-between gap-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 transition-all cursor-pointer"
-          >
-            Cancelar
-          </button>
+        <div className="bg-slate-50 p-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 transition-all cursor-pointer"
+            >
+              Fechar
+            </button>
+            <button
+              onClick={handleOpenInNewTab}
+              type="button"
+              className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Abrir visualização em nova aba do navegador"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+              <span className="hidden sm:inline">Abrir em Nova Aba</span>
+            </button>
+          </div>
 
           <div className="flex items-center gap-2">
             <button

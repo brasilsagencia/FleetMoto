@@ -14,6 +14,7 @@ import {
   FileText,
   CheckCircle2,
   Clock,
+  RefreshCw,
   AlertCircle,
   AlertTriangle,
   Calendar,
@@ -43,9 +44,12 @@ import {
   Disc,
   Globe,
   Users,
+  Printer,
+  FileDown,
 } from 'lucide-react';
 import { Comite, StatusComite, CargoEleitoral, OrigemCliente, RegiaoRota } from '../types';
 import { RotasClienteView } from './rotas-cliente/RotasClienteView';
+import { RelatorioClientesPdfModal } from './comites/RelatorioClientesPdfModal';
 import {
   OPCOES_REGIAO_ROTA,
   getRegiaoRotaConfig,
@@ -98,6 +102,143 @@ export const renderOrigemIcon = (origemId?: OrigemCliente, className = 'w-3.5 h-
     default:
       return <Building2 className={className} />;
   }
+};
+
+/**
+ * Utilitário para formatar a data agendada com segurança sem desvios de fuso horário UTC
+ */
+export const formatDataAgendada = (dateString?: string, horarioString?: string): string => {
+  if (!dateString) return 'Sem agendamento';
+  try {
+    const clean = dateString.trim().slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+      const [year, month, day] = clean.split('-');
+      const str = `${day}/${month}/${year}`;
+      return horarioString ? `${str} às ${horarioString}h` : str;
+    }
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return dateString;
+    const formatted = d.toLocaleDateString('pt-BR');
+    return horarioString ? `${formatted} às ${horarioString}h` : formatted;
+  } catch {
+    return dateString;
+  }
+};
+
+/**
+ * Retorna status e estilização rica para datas agendadas
+ */
+export const getDataAgendadaInfo = (dataString?: string, horarioString?: string) => {
+  if (!dataString) {
+    return {
+      statusKey: 'sem_data' as const,
+      label: 'Sem data agendada',
+      statusLabel: 'Sem data agendada',
+      badgeClass: 'bg-amber-50 text-amber-900 border-amber-300 font-semibold',
+      statusBadgeClass: 'bg-amber-50 text-amber-900 border-amber-300 font-semibold',
+      dotClass: 'bg-amber-500',
+      textoFormatado: 'Sem agendamento',
+      dataTexto: 'Sem data definida',
+      formattedDate: 'Sem data definida',
+      horarioTexto: horarioString ? `${horarioString}h` : 'Não definido',
+      formattedTime: horarioString ? `${horarioString}h` : 'Não definido',
+      isHoje: false,
+      isAmanha: false,
+      isSemana: false,
+    };
+  }
+
+  const cleanIso = dataString.slice(0, 10);
+  const [yearStr, monthStr, dayStr] = cleanIso.split('-');
+  const dataFormatada = yearStr && monthStr && dayStr ? `${dayStr}/${monthStr}/${yearStr}` : formatDate(dataString);
+
+  const hoje = new Date().toISOString().slice(0, 10);
+  const dTom = new Date();
+  dTom.setDate(dTom.getDate() + 1);
+  const amanha = dTom.toISOString().slice(0, 10);
+
+  const dWeek = new Date();
+  dWeek.setDate(dWeek.getDate() + 7);
+  const semanaFim = dWeek.toISOString().slice(0, 10);
+
+  const isHoje = cleanIso === hoje;
+  const isAmanha = cleanIso === amanha;
+  const isSemana = cleanIso >= hoje && cleanIso <= semanaFim;
+  const isPassado = cleanIso < hoje;
+
+  if (isHoje) {
+    return {
+      statusKey: 'hoje' as const,
+      label: 'Agendado para Hoje',
+      statusLabel: 'Agendado para Hoje',
+      badgeClass: 'bg-emerald-50 text-emerald-900 border-emerald-300 font-extrabold ring-1 ring-emerald-200 shadow-2xs',
+      statusBadgeClass: 'bg-emerald-50 text-emerald-900 border-emerald-300 font-extrabold ring-1 ring-emerald-200 shadow-2xs',
+      dotClass: 'bg-emerald-500 animate-pulse',
+      textoFormatado: `Hoje • ${dataFormatada}${horarioString ? ` às ${horarioString}h` : ''}`,
+      dataTexto: `Hoje (${dataFormatada})`,
+      formattedDate: `Hoje (${dataFormatada})`,
+      horarioTexto: horarioString ? `${horarioString}h` : '14:00h',
+      formattedTime: horarioString ? `${horarioString}h` : '14:00h',
+      isHoje: true,
+      isAmanha: false,
+      isSemana: true,
+    };
+  }
+
+  if (isAmanha) {
+    return {
+      statusKey: 'amanha' as const,
+      label: 'Agendado para Amanhã',
+      statusLabel: 'Agendado para Amanhã',
+      badgeClass: 'bg-blue-50 text-blue-900 border-blue-300 font-bold ring-1 ring-blue-200 shadow-2xs',
+      statusBadgeClass: 'bg-blue-50 text-blue-900 border-blue-300 font-bold ring-1 ring-blue-200 shadow-2xs',
+      dotClass: 'bg-blue-500',
+      textoFormatado: `Amanhã • ${dataFormatada}${horarioString ? ` às ${horarioString}h` : ''}`,
+      dataTexto: `Amanhã (${dataFormatada})`,
+      formattedDate: `Amanhã (${dataFormatada})`,
+      horarioTexto: horarioString ? `${horarioString}h` : '14:00h',
+      formattedTime: horarioString ? `${horarioString}h` : '14:00h',
+      isHoje: false,
+      isAmanha: true,
+      isSemana: true,
+    };
+  }
+
+  if (isPassado) {
+    return {
+      statusKey: 'passado' as const,
+      label: 'Data Passada',
+      statusLabel: 'Data Passada',
+      badgeClass: 'bg-slate-100 text-slate-700 border-slate-300 font-medium',
+      statusBadgeClass: 'bg-slate-100 text-slate-700 border-slate-300 font-medium',
+      dotClass: 'bg-slate-400',
+      textoFormatado: `${dataFormatada}${horarioString ? ` às ${horarioString}h` : ''}`,
+      dataTexto: dataFormatada,
+      formattedDate: dataFormatada,
+      horarioTexto: horarioString ? `${horarioString}h` : '',
+      formattedTime: horarioString ? `${horarioString}h` : '',
+      isHoje: false,
+      isAmanha: false,
+      isSemana: false,
+    };
+  }
+
+  return {
+    statusKey: 'futuro' as const,
+    label: 'Próximos Dias',
+    statusLabel: 'Próximos Dias',
+    badgeClass: 'bg-purple-50 text-purple-900 border-purple-300 font-semibold',
+    statusBadgeClass: 'bg-purple-50 text-purple-900 border-purple-300 font-semibold',
+    dotClass: 'bg-purple-500',
+    textoFormatado: `${dataFormatada}${horarioString ? ` às ${horarioString}h` : ''}`,
+    dataTexto: dataFormatada,
+    formattedDate: dataFormatada,
+    horarioTexto: horarioString ? `${horarioString}h` : '',
+    formattedTime: horarioString ? `${horarioString}h` : '',
+    isHoje: false,
+    isAmanha: false,
+    isSemana,
+  };
 };
 
 export const OPCOES_MATERIAIS = [
@@ -199,9 +340,9 @@ export const OPCOES_ORIGEM: Array<{
 
 interface ComitesViewProps {
   comites: Comite[];
-  onAddComite: (comite: Omit<Comite, 'id' | 'totalEntregas' | 'volumeTotalMateriais' | 'dataCadastro'>) => void;
-  onUpdateComite: (comite: Comite) => void;
-  onDeleteComite: (id: string) => void;
+  onAddComite: (comite: Omit<Comite, 'id' | 'totalEntregas' | 'volumeTotalMateriais' | 'dataCadastro'>) => void | Promise<void>;
+  onUpdateComite: (comite: Comite) => void | Promise<void>;
+  onDeleteComite: (id: string) => void | Promise<void>;
   onRequestDeliveryForComite: (comite: Comite) => void;
   initialSearchQuery?: string;
 }
@@ -221,15 +362,30 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
   const [origemFilter, setOrigemFilter] = useState<string>('todos');
   const [materialFilter, setMaterialFilter] = useState<string>('todos');
   const [filtroRegiao, setFiltroRegiao] = useState<string>('todas');
+  const [filtroDataAgendada, setFiltroDataAgendada] = useState<'todas' | 'hoje' | 'amanha' | 'semana' | 'sem_data' | 'especifica'>('todas');
+  const [filtroDataEspecifica, setFiltroDataEspecifica] = useState<string>('');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(6);
 
   // Modals & Details state
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalTab, setModalTab] = useState<'origem' | 'agendamento' | 'materiais' | 'descricao'>('origem');
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [modalTab, setModalTab] = useState<'origem' | 'agendamento' | 'materiais' | 'descricao' | 'confirmar'>('origem');
   const [editingComite, setEditingComite] = useState<Comite | null>(null);
   const [selectedComiteDetails, setSelectedComiteDetails] = useState<Comite | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  // Form submission and feedback state
+  const [isSaving, setIsSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 4000);
+  };
 
   // Form State
   const [formData, setFormData] = useState<{
@@ -253,6 +409,8 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
     origemCliente: OrigemCliente;
     data: string;
     horario: string;
+    dataAgendada?: string;
+    horarioAgendado?: string;
     interferencia: string;
     materiais: string[];
     modeloCarro: string;
@@ -282,6 +440,8 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
     origemCliente: 'rosane' as OrigemCliente,
     data: new Date().toISOString().slice(0, 10),
     horario: '14:00',
+    dataAgendada: new Date().toISOString().slice(0, 10),
+    horarioAgendado: '14:00',
     interferencia: '',
     materiais: ['perfurado', 'santao'],
     modeloCarro: '',
@@ -331,7 +491,18 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
 
   // Filtered comites
   const filteredComites = useMemo(() => {
+    const hojeStr = new Date().toISOString().slice(0, 10);
+    const dTomorrow = new Date();
+    dTomorrow.setDate(dTomorrow.getDate() + 1);
+    const amanhaStr = dTomorrow.toISOString().slice(0, 10);
+    const dWeek = new Date();
+    dWeek.setDate(dWeek.getDate() + 7);
+    const semanaFimStr = dWeek.toISOString().slice(0, 10);
+
     return comites.filter((c) => {
+      const dataEfetiva = (c.dataAgendada || c.data || '').slice(0, 10);
+      const horarioEfetivo = c.horarioAgendado || c.horario || '';
+
       const matchesSearch =
         c.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.candidato.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -343,8 +514,8 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
         c.responsavel.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.bairro.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (c.interferencia && c.interferencia.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (c.data && c.data.includes(searchTerm)) ||
-        (c.horario && c.horario.includes(searchTerm));
+        dataEfetiva.includes(searchTerm) ||
+        horarioEfetivo.includes(searchTerm);
 
       const matchesStatus =
         statusFilter === 'todos' ? true : c.status === statusFilter;
@@ -361,9 +532,23 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
           ? !c.regiaoRota
           : c.regiaoRota === filtroRegiao;
 
-      return matchesSearch && matchesStatus && matchesOrigem && matchesMaterial && matchesRegiao;
+      // Filtro de Data Agendada
+      let matchesData = true;
+      if (filtroDataAgendada === 'hoje') {
+        matchesData = dataEfetiva === hojeStr;
+      } else if (filtroDataAgendada === 'amanha') {
+        matchesData = dataEfetiva === amanhaStr;
+      } else if (filtroDataAgendada === 'semana') {
+        matchesData = dataEfetiva >= hojeStr && dataEfetiva <= semanaFimStr;
+      } else if (filtroDataAgendada === 'sem_data') {
+        matchesData = !dataEfetiva;
+      } else if (filtroDataAgendada === 'especifica') {
+        matchesData = filtroDataEspecifica ? dataEfetiva === filtroDataEspecifica : true;
+      }
+
+      return matchesSearch && matchesStatus && matchesOrigem && matchesMaterial && matchesRegiao && matchesData;
     });
-  }, [comites, searchTerm, statusFilter, origemFilter, materialFilter, filtroRegiao]);
+  }, [comites, searchTerm, statusFilter, origemFilter, materialFilter, filtroRegiao, filtroDataAgendada, filtroDataEspecifica]);
 
   // Pagination logic
   const totalPages = Math.ceil(filteredComites.length / itemsPerPage) || 1;
@@ -378,6 +563,35 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
   const clientesBaixadaCount = comites.filter((c) => c.regiaoRota === 'Baixada Fluminense').length;
   const clientesNiteroiSGCount = comites.filter((c) => c.regiaoRota === 'Niterói / São Gonçalo').length;
   const clientesSemRotaCount = comites.filter((c) => !c.regiaoRota).length;
+
+  // Estatísticas de Agendamento
+  const hojeIsoStr = new Date().toISOString().slice(0, 10);
+  const amanhaDateCalc = new Date();
+  amanhaDateCalc.setDate(amanhaDateCalc.getDate() + 1);
+  const amanhaIsoStr = amanhaDateCalc.toISOString().slice(0, 10);
+  const semanaDateCalc = new Date();
+  semanaDateCalc.setDate(semanaDateCalc.getDate() + 7);
+  const semanaFimIsoStr = semanaDateCalc.toISOString().slice(0, 10);
+
+  const agendadosHojeCount = comites.filter((c) => {
+    const d = (c.dataAgendada || c.data || '').slice(0, 10);
+    return d === hojeIsoStr;
+  }).length;
+
+  const agendadosAmanhaCount = comites.filter((c) => {
+    const d = (c.dataAgendada || c.data || '').slice(0, 10);
+    return d === amanhaIsoStr;
+  }).length;
+
+  const agendadosSemanaCount = comites.filter((c) => {
+    const d = (c.dataAgendada || c.data || '').slice(0, 10);
+    return d >= hojeIsoStr && d <= semanaFimIsoStr;
+  }).length;
+
+  const semAgendamentoCount = comites.filter((c) => {
+    const d = (c.dataAgendada || c.data || '').slice(0, 10);
+    return !d;
+  }).length;
 
   // Statistics de Origem e Geral
   const totalMateriaisTodos = comites.reduce(
@@ -402,6 +616,8 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
   const handleOpenNewModal = () => {
     setEditingComite(null);
     setModalTab('origem');
+    setFormError(null);
+    const hojeStr = new Date().toISOString().slice(0, 10);
     setFormData({
       nome: '',
       candidato: '',
@@ -419,10 +635,12 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
       cidade: 'Rio de Janeiro',
       uf: 'RJ',
       cep: '',
-      regiaoRota: undefined,
+      regiaoRota: 'Zona Norte',
       origemCliente: 'rosane',
-      data: new Date().toISOString().slice(0, 10),
+      data: hojeStr,
       horario: '14:00',
+      dataAgendada: hojeStr,
+      horarioAgendado: '14:00',
       interferencia: '',
       materiais: ['perfurado', 'santao'],
       modeloCarro: '',
@@ -438,34 +656,39 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
   const handleOpenEditModal = (comite: Comite) => {
     setEditingComite(comite);
     setModalTab('origem');
+    setFormError(null);
+    const dataEfetiva = comite.dataAgendada || comite.data || new Date().toISOString().slice(0, 10);
+    const horarioEfetivo = comite.horarioAgendado || comite.horario || '14:00';
     setFormData({
-      nome: comite.nome,
-      candidato: comite.candidato,
+      nome: comite.nome || '',
+      candidato: comite.candidato || '',
       cargo: comite.cargo || 'Deputado Federal',
       partido: comite.partido || '',
       numero: comite.numero || '',
       cnpjCampanha: comite.cnpjCampanha || '',
-      responsavel: comite.responsavel,
+      responsavel: comite.responsavel || '',
       cargoResponsavel: comite.cargoResponsavel || 'Responsável',
-      telefone: comite.telefone,
-      email: comite.email,
-      endereco: comite.endereco,
-      numeroEnd: comite.numeroEnd,
-      bairro: comite.bairro,
+      telefone: comite.telefone || '',
+      email: comite.email || '',
+      endereco: comite.endereco || '',
+      numeroEnd: comite.numeroEnd || '',
+      bairro: comite.bairro || '',
       cidade: comite.cidade || 'Rio de Janeiro',
       uf: comite.uf || 'RJ',
       cep: comite.cep || '',
-      regiaoRota: comite.regiaoRota,
+      regiaoRota: comite.regiaoRota || 'Zona Norte',
       origemCliente: comite.origemCliente || 'rosane',
-      data: comite.data || new Date().toISOString().slice(0, 10),
-      horario: comite.horario || '14:00',
+      data: dataEfetiva,
+      horario: horarioEfetivo,
+      dataAgendada: dataEfetiva,
+      horarioAgendado: horarioEfetivo,
       interferencia: comite.interferencia || '',
       materiais: comite.materiais || ['perfurado'],
       modeloCarro: comite.modeloCarro || '',
       zonaEleitoral: comite.zonaEleitoral || '',
       secoesAtendidas: comite.secoesAtendidas || '',
       valorBaseRota: comite.valorBaseRota || 45,
-      status: comite.status,
+      status: comite.status || 'ativo',
       observacoes: comite.observacoes || '',
     });
     setIsModalOpen(true);
@@ -482,29 +705,67 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
     });
   };
 
-  const handleSubmitForm = (e: React.FormEvent) => {
+  const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.nome || !formData.telefone) {
-      alert('Por favor, preencha os campos obrigatórios (Nome do cliente e Telefone)');
+    if (isSaving) return;
+
+    setFormError(null);
+
+    // Validação básica obrigatória
+    if (!formData.nome || !formData.nome.trim()) {
+      setFormError('Por favor, informe o Nome do Cliente / Comitê.');
+      setModalTab('origem');
       return;
     }
 
-    // Validação obrigatória do campo Região/Rota
-    if (!formData.regiaoRota) {
-      alert('O campo Região/Rota é obrigatório para concluir o cadastro. Por favor, selecione uma rota no menu suspenso (Zona Norte, Zona Oeste, Baixada Fluminense ou Niterói / São Gonçalo).');
-      setModalTab('agendamento');
+    if (!formData.telefone || !formData.telefone.trim()) {
+      setFormError('Por favor, informe o Telefone / WhatsApp do Cliente.');
+      setModalTab('origem');
       return;
     }
 
-    if (editingComite) {
-      onUpdateComite({
-        ...editingComite,
-        ...formData,
-      });
-    } else {
-      onAddComite(formData);
+    // Região / Rota: se não selecionada, aplicar sugestão inteligente ou valor padrão ('Zona Norte')
+    const finalRegiaoRota: RegiaoRota = formData.regiaoRota || (sugestaoRegiao?.regiao as RegiaoRota) || 'Zona Norte';
+    const finalCandidato = (formData.candidato && formData.candidato.trim()) ? formData.candidato.trim() : formData.nome.trim();
+    const finalEndereco = (formData.endereco && formData.endereco.trim()) ? formData.endereco.trim() : 'A definir / Retirada';
+    const finalCep = (formData.cep && formData.cep.trim()) ? formData.cep.trim() : '20000-000';
+    const finalData = formData.dataAgendada || formData.data || new Date().toISOString().slice(0, 10);
+    const finalHorario = formData.horarioAgendado || formData.horario || '14:00';
+
+    const payload = {
+      ...formData,
+      nome: formData.nome.trim(),
+      candidato: finalCandidato,
+      telefone: formData.telefone.trim(),
+      endereco: finalEndereco,
+      cep: finalCep,
+      regiaoRota: finalRegiaoRota,
+      data: finalData,
+      horario: finalHorario,
+      dataAgendada: finalData,
+      horarioAgendado: finalHorario,
+    };
+
+    setIsSaving(true);
+    try {
+      if (editingComite) {
+        await onUpdateComite({
+          ...editingComite,
+          ...payload,
+        });
+        showToast(`Cliente "${payload.nome}" atualizado com sucesso!`);
+      } else {
+        await onAddComite(payload);
+        showToast(`Cliente "${payload.nome}" cadastrado com sucesso!`);
+      }
+      setIsModalOpen(false);
+      setEditingComite(null);
+    } catch (err: any) {
+      console.error('Erro ao salvar cliente:', err);
+      setFormError(err?.message || 'Erro ao processar o cadastro do cliente.');
+    } finally {
+      setIsSaving(false);
     }
-    setIsModalOpen(false);
   };
 
   const handleExportCSV = () => {
@@ -514,8 +775,9 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
       'Candidato/Titular',
       'Regiao/Rota',
       'Origem / Indicacao',
-      'Data',
-      'Horario',
+      'Data Agendada',
+      'Horario Agendado',
+      'Status Agendamento',
       'Interferencia',
       'Telefone',
       'Endereco Completo',
@@ -528,25 +790,32 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
       'Volume Materiais',
     ];
 
-    const rows = filteredComites.map((c) => [
-      c.id,
-      `"${c.nome}"`,
-      `"${c.candidato}"`,
-      `"${c.regiaoRota || 'Rota não definida'}"`,
-      `"${c.origemCliente || 'esther'}"`,
-      `"${c.data || ''}"`,
-      `"${c.horario || ''}"`,
-      `"${(c.interferencia || '').replace(/"/g, '""')}"`,
-      `"${c.telefone}"`,
-      `"${c.endereco}, ${c.numeroEnd} - ${c.bairro}, ${c.cidade}/${c.uf}"`,
-      `"${c.cep || ''}"`,
-      `"${(c.materiais || []).join(', ')}"`,
-      `"${c.modeloCarro || ''}"`,
-      `"${c.responsavel}"`,
-      c.status,
-      c.totalEntregas,
-      c.volumeTotalMateriais,
-    ]);
+    const rows = filteredComites.map((c) => {
+      const dataEfetiva = c.dataAgendada || c.data || '';
+      const horarioEfetivo = c.horarioAgendado || c.horario || '';
+      const agendamentoInfo = getDataAgendadaInfo(dataEfetiva, horarioEfetivo);
+
+      return [
+        c.id,
+        `"${c.nome}"`,
+        `"${c.candidato}"`,
+        `"${c.regiaoRota || 'Rota não definida'}"`,
+        `"${c.origemCliente || 'esther'}"`,
+        `"${dataEfetiva}"`,
+        `"${horarioEfetivo}"`,
+        `"${agendamentoInfo.label}"`,
+        `"${(c.interferencia || '').replace(/"/g, '""')}"`,
+        `"${c.telefone}"`,
+        `"${c.endereco}, ${c.numeroEnd} - ${c.bairro}, ${c.cidade}/${c.uf}"`,
+        `"${c.cep || ''}"`,
+        `"${(c.materiais || []).join(', ')}"`,
+        `"${c.modeloCarro || ''}"`,
+        `"${c.responsavel}"`,
+        c.status,
+        c.totalEntregas,
+        c.volumeTotalMateriais,
+      ];
+    });
 
     const csvContent =
       'data:text/csv;charset=utf-8,' +
@@ -1026,6 +1295,129 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
             </div>
           </div>
 
+          {/* Agendamentos Rápidos / Status de Data Agendada */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <button
+              type="button"
+              onClick={() => {
+                setFiltroDataAgendada(filtroDataAgendada === 'hoje' ? 'todas' : 'hoje');
+                setCurrentPage(1);
+              }}
+              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                filtroDataAgendada === 'hoje'
+                  ? 'bg-emerald-100/80 border-emerald-500 ring-2 ring-emerald-400 shadow-xs'
+                  : 'bg-emerald-50/60 border-emerald-200/80 hover:bg-emerald-50 hover:border-emerald-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-xs font-black shadow-2xs">
+                  <Calendar className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-emerald-950 uppercase tracking-wider">
+                    Agendados Hoje
+                  </p>
+                  <p className="text-xs font-black text-emerald-800">
+                    {agendadosHojeCount} cliente(s)
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-bold text-emerald-700 bg-white/80 px-1.5 py-0.5 rounded border border-emerald-200">
+                {filtroDataAgendada === 'hoje' ? 'Filtro Ativo' : 'Filtrar'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setFiltroDataAgendada(filtroDataAgendada === 'amanha' ? 'todas' : 'amanha');
+                setCurrentPage(1);
+              }}
+              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                filtroDataAgendada === 'amanha'
+                  ? 'bg-blue-100/80 border-blue-500 ring-2 ring-blue-400 shadow-xs'
+                  : 'bg-blue-50/60 border-blue-200/80 hover:bg-blue-50 hover:border-blue-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-black shadow-2xs">
+                  <Clock className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-blue-950 uppercase tracking-wider">
+                    Agendados Amanhã
+                  </p>
+                  <p className="text-xs font-black text-blue-800">
+                    {agendadosAmanhaCount} cliente(s)
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-bold text-blue-700 bg-white/80 px-1.5 py-0.5 rounded border border-blue-200">
+                {filtroDataAgendada === 'amanha' ? 'Filtro Ativo' : 'Filtrar'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setFiltroDataAgendada(filtroDataAgendada === 'semana' ? 'todas' : 'semana');
+                setCurrentPage(1);
+              }}
+              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                filtroDataAgendada === 'semana'
+                  ? 'bg-purple-100/80 border-purple-500 ring-2 ring-purple-400 shadow-xs'
+                  : 'bg-purple-50/60 border-purple-200/80 hover:bg-purple-50 hover:border-purple-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-purple-600 text-white flex items-center justify-center text-xs font-black shadow-2xs">
+                  <Sparkles className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-purple-950 uppercase tracking-wider">
+                    Próximos 7 Dias
+                  </p>
+                  <p className="text-xs font-black text-purple-800">
+                    {agendadosSemanaCount} cliente(s)
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-bold text-purple-700 bg-white/80 px-1.5 py-0.5 rounded border border-purple-200">
+                {filtroDataAgendada === 'semana' ? 'Filtro Ativo' : 'Filtrar'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setFiltroDataAgendada(filtroDataAgendada === 'sem_data' ? 'todas' : 'sem_data');
+                setCurrentPage(1);
+              }}
+              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                filtroDataAgendada === 'sem_data'
+                  ? 'bg-amber-100/80 border-amber-500 ring-2 ring-amber-400 shadow-xs'
+                  : 'bg-amber-50/60 border-amber-200/80 hover:bg-amber-50 hover:border-amber-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center text-xs font-black shadow-2xs">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-amber-950 uppercase tracking-wider">
+                    Sem Agendamento
+                  </p>
+                  <p className="text-xs font-black text-amber-800">
+                    {semAgendamentoCount} cliente(s)
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-bold text-amber-700 bg-white/80 px-1.5 py-0.5 rounded border border-amber-200">
+                {filtroDataAgendada === 'sem_data' ? 'Filtro Ativo' : 'Filtrar'}
+              </span>
+            </button>
+          </div>
+
       {/* Main Table Card */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
         {/* Header with Title and Global Actions */}
@@ -1034,7 +1426,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-base lg:text-lg font-bold text-slate-900">
-                  Lista de Clientes, Regiões/Rotas & Agendamentos
+                  Lista de Clientes, Regiões/Rotas & Datas Agendadas
                 </h2>
                 {filtroRegiao !== 'todas' && (
                   <span className="text-xs bg-slate-900 text-white font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
@@ -1048,20 +1440,38 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                     </button>
                   </span>
                 )}
+                {filtroDataAgendada !== 'todas' && (
+                  <span className="text-xs bg-[#E05328] text-white font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <Calendar className="w-3 h-3 text-white" />
+                    <span>
+                      Data: {filtroDataAgendada === 'hoje' ? 'Hoje' : filtroDataAgendada === 'amanha' ? 'Amanhã' : filtroDataAgendada === 'semana' ? 'Próximos 7 Dias' : filtroDataAgendada === 'sem_data' ? 'Sem Data' : filtroDataEspecifica}
+                    </span>
+                    <button
+                      onClick={() => {
+                        setFiltroDataAgendada('todas');
+                        setFiltroDataEspecifica('');
+                      }}
+                      className="ml-1 hover:text-rose-200 cursor-pointer"
+                    >
+                      ×
+                    </button>
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Organização por <strong>Região/Rota</strong> (Zona Norte, Zona Oeste, Baixada Fluminense, Niterói / SG), abas de origem, materiais e dados de entrega.
+                Organização por <strong>Data Agendada</strong>, <strong>Região/Rota</strong> (Zona Norte, Zona Oeste, Baixada Fluminense, Niterói / SG), abas de origem, materiais e dados de entrega.
               </p>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
               <button
-                onClick={handleExportCSV}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
-                title="Exportar Clientes para CSV"
+                id="btn-relatorio-pdf-clientes"
+                onClick={() => setIsPdfModalOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-900 bg-orange-50 hover:bg-orange-100 border border-orange-200 hover:border-orange-300 shadow-2xs transition-all cursor-pointer"
+                title="Visualizar, Configurar e Imprimir Relatório Oficial em PDF"
               >
-                <Download className="w-4 h-4 text-slate-500" />
-                <span>Exportar CSV</span>
+                <Printer className="w-4 h-4 text-[#E05328]" />
+                <span>Imprimir Relatório (PDF)</span>
               </button>
 
               <button
@@ -1076,14 +1486,14 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
           </div>
 
           {/* Filters Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 mt-4 pt-3 border-t border-slate-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 mt-4 pt-3 border-t border-slate-100">
             {/* Search Input */}
-            <div className="relative">
+            <div className="relative lg:col-span-2">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 id="comites-search-filter"
                 type="text"
-                placeholder="Buscar por nome, bairro, CEP, rota..."
+                placeholder="Buscar por nome, data (AAAA-MM-DD), CEP, rota..."
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
@@ -1099,6 +1509,26 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
+            </div>
+
+            {/* Filtro de Data Agendada */}
+            <div>
+              <select
+                id="comites-data-agendada-filter"
+                value={filtroDataAgendada}
+                onChange={(e) => {
+                  setFiltroDataAgendada(e.target.value as any);
+                  setCurrentPage(1);
+                }}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 font-bold focus:outline-hidden focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
+              >
+                <option value="todas">📅 Data Agendada: Todas</option>
+                <option value="hoje">🟢 Agendados Hoje ({agendadosHojeCount})</option>
+                <option value="amanha">🔵 Agendados Amanhã ({agendadosAmanhaCount})</option>
+                <option value="semana">🗓️ Próximos 7 Dias ({agendadosSemanaCount})</option>
+                <option value="sem_data">⚠️ Sem Agendamento ({semAgendamentoCount})</option>
+                <option value="especifica">🎯 Escolher Data Específica...</option>
+              </select>
             </div>
 
             {/* Região / Rota Filter */}
@@ -1143,7 +1573,7 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
               </select>
             </div>
 
-            {/* Material Filter */}
+            {/* Material & Status Filter */}
             <div>
               <select
                 id="comites-material-filter"
@@ -1163,25 +1593,31 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                 <option value="adesivos_15x40">🏷️ Adesivos 15x40</option>
               </select>
             </div>
+          </div>
 
-            {/* Status Filter */}
-            <div>
-              <select
-                id="comites-status-filter"
-                value={statusFilter}
+          {/* Date Picker para Data Específica quando selecionada */}
+          {filtroDataAgendada === 'especifica' && (
+            <div className="mt-2.5 p-2.5 bg-orange-50/80 rounded-xl border border-orange-200 flex items-center gap-3 animate-in fade-in duration-150">
+              <span className="text-xs font-bold text-orange-950 flex items-center gap-1.5">
+                <Calendar className="w-4 h-4 text-[#E05328]" />
+                <span>Selecione a Data Agendada para filtrar:</span>
+              </span>
+              <input
+                type="date"
+                value={filtroDataEspecifica}
                 onChange={(e) => {
-                  setStatusFilter(e.target.value);
+                  setFiltroDataEspecifica(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-[#E05328]/30 focus:border-[#E05328]"
-              >
-                <option value="todos">Status: Todos</option>
-                <option value="ativo">Status: Ativo</option>
-                <option value="pendente">Status: Pendente</option>
-                <option value="inativo">Status: Inativo</option>
-              </select>
+                className="px-2.5 py-1 text-xs border border-orange-300 rounded-lg bg-white font-bold text-slate-900 focus:ring-2 focus:ring-[#E05328]/30"
+              />
+              {filtroDataEspecifica && (
+                <span className="text-xs font-semibold text-orange-900">
+                  Exibindo clientes agendados para {formatDate(filtroDataEspecifica)}
+                </span>
+              )}
             </div>
-          </div>
+          )}
         </div>
 
         {/* Clean Responsive Table */}
@@ -1303,22 +1739,30 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                         )}
                       </td>
 
-                      {/* Data & Horário */}
+                      {/* Data Agendada & Horário */}
                       <td className="py-3 px-4">
-                        <div className="space-y-1">
-                          <div className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                            <Calendar className="w-3 h-3 text-[#E05328]" />
-                            <span>
-                              {comite.data ? formatDate(comite.data) : formatDate(comite.dataCadastro)}
-                            </span>
-                          </div>
-                          {comite.horario && (
-                            <div className="flex items-center gap-1 text-[11px] text-slate-600 font-medium pl-0.5">
-                              <Clock className="w-3 h-3 text-slate-400" />
-                              <span>{comite.horario}h</span>
+                        {(() => {
+                          const info = getDataAgendadaInfo(comite.dataAgendada || comite.data, comite.horarioAgendado || comite.horario);
+                          return (
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md border ${info.statusBadgeClass}`}>
+                                  <Calendar className="w-3 h-3" />
+                                  <span>{info.formattedDate}</span>
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1 text-[11px] text-slate-600 font-medium pl-0.5">
+                                <Clock className="w-3 h-3 text-slate-400" />
+                                <span>{info.formattedTime}h</span>
+                                {info.statusLabel && info.statusLabel !== 'Sem data' && (
+                                  <span className="text-[10px] font-bold text-slate-500">
+                                    • {info.statusLabel}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Interferência */}
@@ -1557,8 +2001,8 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
           </div>
         </div>
       </div>
-    </>
-  )}
+        </>
+      )}
 
       {/* Modal: Novo / Editar Cliente - Reduzido e com Abas */}
       {isModalOpen && (
@@ -1640,10 +2084,41 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                 <FileText className="w-3.5 h-3.5" />
                 <span>Descrição</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setModalTab('confirmar')}
+                className={`flex-1 min-w-[120px] py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  modalTab === 'confirmar'
+                    ? 'bg-white text-[#E05328] shadow-xs ring-1 ring-slate-200'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Confirmar Cadastro</span>
+              </button>
             </div>
 
             {/* Form & Tab Content */}
-            <form onSubmit={handleSubmitForm} className="flex flex-col flex-1 overflow-hidden">
+            <form noValidate onSubmit={handleSubmitForm} className="flex flex-col flex-1 overflow-hidden">
+              {/* Form Error Banner */}
+              {formError && (
+                <div className="mb-2 p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2 animate-in fade-in duration-150 shrink-0">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-bold">Atenção ao salvar:</p>
+                    <p className="text-[11px] mt-0.5">{formError}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFormError(null)}
+                    className="text-red-400 hover:text-red-700 p-0.5 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
               <div className="flex-1 overflow-y-auto pr-1 space-y-3.5 text-xs py-1">
                 {/* ABA 1: Rosane & Origem / Dados Básicos */}
                 {modalTab === 'origem' && (
@@ -1761,10 +2236,50 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                 {modalTab === 'agendamento' && (
                   <div className="space-y-3 animate-in fade-in duration-100">
                     <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2.5">
-                      <p className="text-[11px] font-bold text-slate-800 flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5 text-[#E05328]" />
-                        <span>Data, Horário e Restrições</span>
-                      </p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-[11px] font-bold text-slate-800 flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5 text-[#E05328]" />
+                          <span>Data Agendada, Horário e Restrições</span>
+                        </p>
+                        {/* Quick Presets */}
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const hojeStr = new Date().toISOString().split('T')[0];
+                              setFormData({ ...formData, data: hojeStr, dataAgendada: hojeStr });
+                            }}
+                            className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-emerald-50 text-emerald-700 border border-slate-200 rounded cursor-pointer"
+                          >
+                            Hoje
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const am = new Date();
+                              am.setDate(am.getDate() + 1);
+                              const amStr = am.toISOString().split('T')[0];
+                              setFormData({ ...formData, data: amStr, dataAgendada: amStr });
+                            }}
+                            className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-blue-50 text-blue-700 border border-slate-200 rounded cursor-pointer"
+                          >
+                            Amanhã
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const d7 = new Date();
+                              d7.setDate(d7.getDate() + 7);
+                              const d7Str = d7.toISOString().split('T')[0];
+                              setFormData({ ...formData, data: d7Str, dataAgendada: d7Str });
+                            }}
+                            className="px-2 py-0.5 text-[10px] font-bold bg-white hover:bg-purple-50 text-purple-700 border border-slate-200 rounded cursor-pointer"
+                          >
+                            +7 Dias
+                          </button>
+                        </div>
+                      </div>
+
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <div>
                           <label className="block text-[10px] font-bold text-slate-600 mb-1">
@@ -1773,32 +2288,32 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                           <input
                             type="date"
                             required
-                            value={formData.data}
-                            onChange={(e) => setFormData({ ...formData, data: e.target.value })}
+                            value={formData.dataAgendada || formData.data}
+                            onChange={(e) => setFormData({ ...formData, data: e.target.value, dataAgendada: e.target.value })}
                             className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white font-semibold focus:ring-2 focus:ring-[#E05328]/30"
                           />
                         </div>
 
                         <div>
                           <label className="block text-[10px] font-bold text-slate-600 mb-1">
-                            Horário Previsto *
+                            Horário Agendado *
                           </label>
                           <input
                             type="time"
                             required
-                            value={formData.horario}
-                            onChange={(e) => setFormData({ ...formData, horario: e.target.value })}
+                            value={formData.horarioAgendado || formData.horario}
+                            onChange={(e) => setFormData({ ...formData, horario: e.target.value, horarioAgendado: e.target.value })}
                             className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white font-semibold focus:ring-2 focus:ring-[#E05328]/30"
                           />
                         </div>
 
                         <div>
                           <label className="block text-[10px] font-bold text-slate-600 mb-1">
-                            Interferência
+                            Interferência Operacional
                           </label>
                           <input
                             type="text"
-                            placeholder="Ex: Trânsito, feira..."
+                            placeholder="Ex: Trânsito, feira, restrição de horário..."
                             value={formData.interferencia}
                             onChange={(e) => setFormData({ ...formData, interferencia: e.target.value })}
                             className="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-[#E05328]/30"
@@ -2084,6 +2599,182 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                     </div>
                   </div>
                 )}
+
+                {/* ABA 5: Confirmar Cadastro & Resumo */}
+                {modalTab === 'confirmar' && (
+                  <div className="space-y-3 animate-in fade-in duration-100">
+                    <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-3 flex items-start gap-2.5">
+                      <div className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg shrink-0 mt-0.5">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-emerald-950 text-xs">
+                          Revisão e Confirmação dos Dados Cadastrais
+                        </h4>
+                        <p className="text-[11px] text-emerald-800 leading-relaxed mt-0.5">
+                          Verifique os dados abaixo antes de finalizar. Ao confirmar, o cliente será gravado no sistema e estará imediatamente disponível para rotas e pedidos.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Resumo em Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      {/* Bloco 1: Identificação */}
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1.5">
+                        <p className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+                          <Building2 className="w-3.5 h-3.5 text-[#E05328]" />
+                          <span>Identificação do Cliente / Campanha</span>
+                        </p>
+                        <div className="text-[11px] space-y-1 text-slate-700">
+                          <p><span className="font-semibold text-slate-500">Nome:</span> <strong className="text-slate-900">{formData.nome || <span className="text-red-500 italic">Não informado</span>}</strong></p>
+                          <p><span className="font-semibold text-slate-500">Candidato:</span> {formData.candidato || formData.nome || '-'}</p>
+                          <p><span className="font-semibold text-slate-500">Cargo / Partido:</span> {formData.cargo} {formData.partido ? `• ${formData.partido}` : ''} {formData.numero ? `(${formData.numero})` : ''}</p>
+                          {formData.cnpjCampanha && <p><span className="font-semibold text-slate-500">CNPJ:</span> {formData.cnpjCampanha}</p>}
+                          <div className="pt-1 flex items-center gap-1.5">
+                            <span className="text-[10px] font-semibold text-slate-500">Origem:</span>
+                            {(() => {
+                              const opc = OPCOES_ORIGEM.find(o => o.id === formData.origemCliente);
+                              return (
+                                <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] border ${opc?.colorClass || 'bg-slate-100 text-slate-700'}`}>
+                                  {opc?.label || formData.origemCliente}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Bloco 2: Contato & Endereço */}
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1.5">
+                        <p className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-[#E05328]" />
+                          <span>Local de Entrega & Contato</span>
+                        </p>
+                        <div className="text-[11px] space-y-1 text-slate-700">
+                          <p><span className="font-semibold text-slate-500">WhatsApp / Tel:</span> <strong className="text-slate-900">{formData.telefone || <span className="text-red-500 italic">Não informado</span>}</strong></p>
+                          {formData.email && <p><span className="font-semibold text-slate-500">E-mail:</span> {formData.email}</p>}
+                          <p><span className="font-semibold text-slate-500">Endereço:</span> {formData.endereco || 'A definir / Retirada'}</p>
+                          <p><span className="font-semibold text-slate-500">Bairro / CEP:</span> {formData.bairro ? `${formData.bairro}, ` : ''}{formData.cidade} - {formData.uf} {formData.cep ? `(${formData.cep})` : ''}</p>
+                          <div className="pt-1 flex items-center gap-1.5">
+                            <span className="text-[10px] font-semibold text-slate-500">Região / Rota:</span>
+                            <span className="px-2 py-0.5 rounded-md font-bold text-[10px] bg-orange-100 text-[#E05328] border border-orange-200">
+                              {formData.regiaoRota || 'Zona Norte'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Bloco 3: Agendamento & Materiais */}
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1.5">
+                        <p className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-[#E05328]" />
+                          <span>Data de Agendamento & Materiais</span>
+                        </p>
+                        <div className="text-[11px] space-y-1 text-slate-700">
+                          {(() => {
+                            const dateVal = formData.dataAgendada || formData.data;
+                            const timeVal = formData.horarioAgendado || formData.horario;
+                            const info = getDataAgendadaInfo(dateVal, timeVal);
+                            return (
+                              <p>
+                                <span className="font-semibold text-slate-500">Data Agendada:</span>{' '}
+                                <strong className="text-slate-900">{info.formattedDate}</strong> às{' '}
+                                <strong className="text-slate-900">{info.formattedTime}h</strong>
+                                {info.statusLabel && info.statusLabel !== 'Sem data' && (
+                                  <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-black border ${info.statusBadgeClass}`}>
+                                    {info.statusLabel}
+                                  </span>
+                                )}
+                              </p>
+                            );
+                          })()}
+                          {formData.interferencia && (
+                            <p><span className="font-semibold text-slate-500">Interferência:</span> {formData.interferencia}</p>
+                          )}
+                          {formData.modeloCarro && (
+                            <p><span className="font-semibold text-slate-500">Modelo do Carro:</span> {formData.modeloCarro}</p>
+                          )}
+                          <div className="pt-1">
+                            <span className="text-[10px] font-semibold text-slate-500 block mb-1">Materiais ({formData.materiais.length}):</span>
+                            <div className="flex flex-wrap gap-1">
+                              {formData.materiais.length === 0 ? (
+                                <span className="text-[10px] text-slate-400 italic">Nenhum material selecionado</span>
+                              ) : (
+                                formData.materiais.map((mId) => {
+                                  const matObj = OPCOES_MATERIAIS.find((m) => m.id === mId);
+                                  return (
+                                    <span key={mId} className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-semibold text-slate-800">
+                                      {renderMaterialIcon(mId, 'w-3 h-3 text-slate-600')}
+                                      <span>{matObj?.label || mId}</span>
+                                    </span>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Bloco 4: Status & Observações */}
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1.5">
+                        <p className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+                          <FileText className="w-3.5 h-3.5 text-[#E05328]" />
+                          <span>Status & Instruções Operacionais</span>
+                        </p>
+                        <div className="text-[11px] space-y-1 text-slate-700">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-slate-500">Status:</span>
+                            <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${getStatusBadgeClass(formData.status)}`}>
+                              {formData.status.toUpperCase()}
+                            </span>
+                          </div>
+                          {formData.observacoes ? (
+                            <div className="mt-1 p-1.5 bg-white rounded border border-slate-200 text-[10px] text-slate-600 max-h-20 overflow-y-auto">
+                              {formData.observacoes}
+                            </div>
+                          ) : (
+                            <p className="text-[10px] text-slate-400 italic mt-1">Sem observações adicionais.</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Call to action de confirmação direta dentro da aba */}
+                    <div className="p-3 rounded-xl bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-[#E05328] text-white flex items-center justify-center font-bold shrink-0">
+                          <Check className="w-4 h-4 stroke-[3]" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-900">
+                            Pronto para salvar no sistema
+                          </p>
+                          <p className="text-[10px] text-slate-600">
+                            Clique no botão abaixo para gravar no banco de dados e fechar a tela.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={isSaving}
+                        onClick={handleSubmitForm}
+                        className="w-full sm:w-auto px-5 py-2 text-xs font-bold text-white bg-[#E05328] hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                      >
+                        {isSaving ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Salvando no Firestore...</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>{editingComite ? 'Salvar Alterações e Fechar' : 'Confirmar e Salvar Cadastro'}</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Action Buttons & Tab Navigation */}
@@ -2093,7 +2784,8 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        if (modalTab === 'descricao') setModalTab('materiais');
+                        if (modalTab === 'confirmar') setModalTab('descricao');
+                        else if (modalTab === 'descricao') setModalTab('materiais');
                         else if (modalTab === 'materiais') setModalTab('agendamento');
                         else if (modalTab === 'agendamento') setModalTab('origem');
                       }}
@@ -2102,13 +2794,14 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                       ← Voltar
                     </button>
                   )}
-                  {modalTab !== 'descricao' && (
+                  {modalTab !== 'confirmar' && (
                     <button
                       type="button"
                       onClick={() => {
                         if (modalTab === 'origem') setModalTab('agendamento');
                         else if (modalTab === 'agendamento') setModalTab('materiais');
                         else if (modalTab === 'materiais') setModalTab('descricao');
+                        else if (modalTab === 'descricao') setModalTab('confirmar');
                       }}
                       className="px-2.5 py-1.5 text-xs font-semibold text-[#E05328] hover:bg-orange-50 rounded-xl transition-colors cursor-pointer"
                     >
@@ -2127,9 +2820,20 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-1.5 text-xs font-bold text-white bg-[#E05328] hover:bg-orange-700 rounded-xl shadow-xs transition-all cursor-pointer"
+                    disabled={isSaving}
+                    className="px-4 py-1.5 text-xs font-bold text-white bg-[#E05328] hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
                   >
-                    {editingComite ? 'Salvar Alterações' : 'Confirmar Cadastro'}
+                    {isSaving ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Salvando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>{editingComite ? 'Salvar Alterações' : 'Confirmar Cadastro'}</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -2220,17 +2924,32 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
                   </div>
                 </div>
 
-                {/* Data, Horário e Interferência */}
+                {/* Data Agendada, Horário e Interferência */}
                 <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5 text-[#E05328]" />
-                      <span>Data & Horário</span>
-                    </span>
-                    <span className="text-xs font-black text-slate-900">
-                      {selectedComiteDetails.data ? formatDate(selectedComiteDetails.data) : formatDate(selectedComiteDetails.dataCadastro)} às {selectedComiteDetails.horario || '14:00'}h
-                    </span>
-                  </div>
+                  {(() => {
+                    const info = getDataAgendadaInfo(
+                      selectedComiteDetails.dataAgendada || selectedComiteDetails.data,
+                      selectedComiteDetails.horarioAgendado || selectedComiteDetails.horario
+                    );
+                    return (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-[#E05328]" />
+                            <span>Data Agendada & Horário</span>
+                          </span>
+                          {info.statusLabel && info.statusLabel !== 'Sem data' && (
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${info.statusBadgeClass}`}>
+                              {info.statusLabel}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm font-black text-slate-900">
+                          {info.formattedDate} às {info.formattedTime}h
+                        </p>
+                      </div>
+                    );
+                  })()}
 
                   {selectedComiteDetails.interferencia && (
                     <div className="p-2.5 bg-amber-50 rounded-lg border border-amber-200 text-amber-950 mt-1.5 flex items-start gap-2">
@@ -2374,6 +3093,23 @@ export const ComitesView: React.FC<ComitesViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal: Relatório & Impressão em PDF de Clientes */}
+      <RelatorioClientesPdfModal
+        isOpen={isPdfModalOpen}
+        onClose={() => setIsPdfModalOpen(false)}
+        clientes={filteredComites}
+        filtrosAtivos={{
+          termoBusca: searchTerm,
+          filtroDataAgendada,
+          filtroDataEspecifica,
+          filtroRegiao,
+          filtroStatus: statusFilter,
+          filtroOrigem: origemFilter,
+          filtroMaterial: materialFilter,
+        }}
+        onExportCsv={handleExportCSV}
+      />
     </div>
   );
 };

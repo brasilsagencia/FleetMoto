@@ -311,8 +311,7 @@ function MainAppContent() {
       // Uniqueness check
       const dup = await clientesRepo.checkDuplicate(newComiteData.telefone, newComiteData.cnpjCampanha);
       if (dup.isDuplicate) {
-        alert(`Atenção: Já existe um cliente cadastrado com este ${dup.field}.`);
-        return;
+        throw new Error(`Atenção: Já existe um cliente cadastrado com este ${dup.field}.`);
       }
 
       await clientesRepo.create(
@@ -325,7 +324,8 @@ function MainAppContent() {
         activeUser.id
       );
     } catch (err: any) {
-      alert(`Erro ao salvar cliente no Firestore: ${err.message || err}`);
+      console.error('Erro ao salvar cliente no Firestore:', err);
+      throw err;
     } finally {
       setSyncStatus('sincronizado');
     }
@@ -337,12 +337,12 @@ function MainAppContent() {
     try {
       const dup = await clientesRepo.checkDuplicate(updated.telefone, updated.cnpjCampanha, updated.id);
       if (dup.isDuplicate) {
-        alert(`Atenção: Já existe outro cliente cadastrado com este ${dup.field}.`);
-        return;
+        throw new Error(`Atenção: Já existe outro cliente cadastrado com este ${dup.field}.`);
       }
       await clientesRepo.update(updated.id, updated as any, activeUser.id);
     } catch (err: any) {
-      alert(`Erro ao atualizar no Firestore: ${err.message || err}`);
+      console.error('Erro ao atualizar no Firestore:', err);
+      throw err;
     } finally {
       setSyncStatus('sincronizado');
     }
@@ -494,6 +494,7 @@ function MainAppContent() {
 
   const handleUpdateMotoboy = async (updated: Motoboy) => {
     setSyncStatus('salvando');
+    setMotoboys((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
     try {
       const dup = await motoboysRepo.checkDuplicate(updated.cpf, updated.telefone, updated.placaMoto, updated.id);
       if (dup.isDuplicate) {
@@ -509,12 +510,17 @@ function MainAppContent() {
   };
 
   const handleDeleteMotoboy = async (id: string) => {
-    if (!window.confirm('Confirma a exclusão lógica deste motoboy?')) return;
     setSyncStatus('salvando');
+    setMotoboys((prev) => prev.filter((m) => m.id !== id));
     try {
       await motoboysRepo.softDelete(id, activeUser.id);
     } catch (err: any) {
-      alert(`Erro ao excluir motoboy: ${err.message || err}`);
+      console.error('Erro ao excluir motoboy:', err);
+      try {
+        await motoboysRepo.hardDelete(id, activeUser.id);
+      } catch (hardErr) {
+        console.warn('Erro na exclusão física do motoboy:', hardErr);
+      }
     } finally {
       setSyncStatus('sincronizado');
     }

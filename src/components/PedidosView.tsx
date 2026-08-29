@@ -87,6 +87,7 @@ export const PedidosView: React.FC<PedidosViewProps> = ({
   const [modalidadeFilter, setModalidadeFilter] = useState<string>('todos');
   const [prioridadeFilter, setPrioridadeFilter] = useState<string>('todos');
   const [dateFilter, setDateFilter] = useState<string>('');
+  const [periodTab, setPeriodTab] = useState<'todos' | 'hoje' | 'amanha' | 'semana' | 'pendentes'>('todos');
 
   // Modals state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -747,9 +748,86 @@ export const PedidosView: React.FC<PedidosViewProps> = ({
     setWhatsappModal(null);
   };
 
+  // Computed reference dates for period filtering
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
+
+  const tomorrowStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
+
+  const next7DaysStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
+
+  // Tab counters (real-time)
+  const tabCounts = useMemo(() => {
+    let todos = pedidos.length;
+    let hoje = 0;
+    let amanha = 0;
+    let semana = 0;
+    let pendentes = 0;
+
+    pedidos.forEach(p => {
+      const dateP = p.dataPedido ? p.dataPedido.slice(0, 10) : '';
+      const datePrev = p.dataPrevisao ? p.dataPrevisao.slice(0, 10) : '';
+
+      if (datePrev === todayStr || dateP === todayStr) {
+        hoje++;
+      }
+      if (datePrev === tomorrowStr || dateP === tomorrowStr) {
+        amanha++;
+      }
+      if (
+        (datePrev && datePrev >= todayStr && datePrev <= next7DaysStr) ||
+        (dateP && dateP >= todayStr && dateP <= next7DaysStr)
+      ) {
+        semana++;
+      }
+      if (['pendente', 'rascunho', 'confirmado', 'em_separacao'].includes(p.status)) {
+        pendentes++;
+      }
+    });
+
+    return { todos, hoje, amanha, semana, pendentes };
+  }, [pedidos, todayStr, tomorrowStr, next7DaysStr]);
+
   // Filtered Orders
   const filteredPedidos = useMemo(() => {
     return pedidos.filter(p => {
+      // Period Tab Filter (Aba de Pedidos com opção "Amanhã")
+      if (periodTab === 'hoje') {
+        const isToday =
+          (p.dataPrevisao && p.dataPrevisao.slice(0, 10) === todayStr) ||
+          (p.dataPedido && p.dataPedido.slice(0, 10) === todayStr);
+        if (!isToday) return false;
+      } else if (periodTab === 'amanha') {
+        const isTomorrow =
+          (p.dataPrevisao && p.dataPrevisao.slice(0, 10) === tomorrowStr) ||
+          (p.dataPedido && p.dataPedido.slice(0, 10) === tomorrowStr);
+        if (!isTomorrow) return false;
+      } else if (periodTab === 'semana') {
+        const pDate = p.dataPrevisao?.slice(0, 10) || p.dataPedido?.slice(0, 10) || '';
+        if (!pDate || pDate < todayStr || pDate > next7DaysStr) return false;
+      } else if (periodTab === 'pendentes') {
+        if (!['pendente', 'rascunho', 'confirmado', 'em_separacao'].includes(p.status)) return false;
+      }
+
       // Search
       const search = searchTerm.toLowerCase().trim();
       const matchSearch =
@@ -771,11 +849,11 @@ export const PedidosView: React.FC<PedidosViewProps> = ({
       const matchPrioridade = prioridadeFilter === 'todos' || p.prioridade === prioridadeFilter;
 
       // Date filter
-      const matchDate = !dateFilter || p.dataPedido?.startsWith(dateFilter);
+      const matchDate = !dateFilter || p.dataPedido?.startsWith(dateFilter) || p.dataPrevisao?.startsWith(dateFilter);
 
       return matchSearch && matchStatus && matchModalidade && matchPrioridade && matchDate;
     });
-  }, [pedidos, searchTerm, statusFilter, modalidadeFilter, prioridadeFilter, dateFilter]);
+  }, [pedidos, periodTab, todayStr, tomorrowStr, next7DaysStr, searchTerm, statusFilter, modalidadeFilter, prioridadeFilter, dateFilter]);
 
   // Quick stats
   const stats = useMemo(() => {
@@ -876,6 +954,125 @@ export const PedidosView: React.FC<PedidosViewProps> = ({
           <p className="text-2xl font-extrabold text-slate-900">{stats.totalMateriais.toLocaleString('pt-BR')} un.</p>
           <p className="text-xs text-slate-500 mt-1">Materiais requisitados</p>
         </div>
+      </div>
+
+      {/* Period Navigation Tabs with dedicated "Amanhã" tab */}
+      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            id="tab-pedidos-todos"
+            onClick={() => setPeriodTab('todos')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              periodTab === 'todos'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+          >
+            <Package className="w-3.5 h-3.5" />
+            <span>Todos os Pedidos</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                periodTab === 'todos' ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600'
+              }`}
+            >
+              {tabCounts.todos}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            id="tab-pedidos-hoje"
+            onClick={() => setPeriodTab('hoje')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              periodTab === 'hoje'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>Hoje</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                periodTab === 'hoje' ? 'bg-blue-700 text-white' : 'bg-blue-100 text-blue-800'
+              }`}
+            >
+              {tabCounts.hoje}
+            </span>
+          </button>
+
+          {/* Dedicated Tab: AMANHÃ */}
+          <button
+            type="button"
+            id="tab-pedidos-amanha"
+            onClick={() => setPeriodTab('amanha')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              periodTab === 'amanha'
+                ? 'bg-[#E05328] text-white shadow-md ring-2 ring-orange-400/40'
+                : 'text-orange-950 bg-orange-50/80 hover:bg-orange-100 border border-orange-200/90 font-bold'
+            }`}
+          >
+            <Sparkles className={`w-3.5 h-3.5 ${periodTab === 'amanha' ? 'text-white' : 'text-[#E05328]'}`} />
+            <span>Amanhã</span>
+            <span
+              className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold ${
+                periodTab === 'amanha' ? 'bg-white text-[#E05328]' : 'bg-[#E05328] text-white shadow-xs'
+              }`}
+            >
+              {tabCounts.amanha}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            id="tab-pedidos-semana"
+            onClick={() => setPeriodTab('semana')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              periodTab === 'semana'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            <span>Próximos 7 Dias</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                periodTab === 'semana' ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600'
+              }`}
+            >
+              {tabCounts.semana}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            id="tab-pedidos-pendentes"
+            onClick={() => setPeriodTab('pendentes')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              periodTab === 'pendentes'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'text-slate-600 hover:bg-amber-50 hover:text-amber-700'
+            }`}
+          >
+            <AlertCircle className="w-3.5 h-3.5" />
+            <span>Pendentes</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                periodTab === 'pendentes' ? 'bg-amber-700 text-white' : 'bg-amber-100 text-amber-800'
+              }`}
+            >
+              {tabCounts.pendentes}
+            </span>
+          </button>
+        </div>
+
+        {/* Active tab contextual indicator */}
+        {periodTab === 'amanha' && (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-xl text-xs font-semibold text-orange-900">
+            <span className="w-2 h-2 rounded-full bg-[#E05328] animate-ping" />
+            <span>Exibindo pedidos com previsão ou agendamento para <strong>Amanhã</strong> ({formatDate(tomorrowStr)})</span>
+          </div>
+        )}
       </div>
 
       {/* Search & Filter Bar */}
@@ -1044,10 +1241,10 @@ export const PedidosView: React.FC<PedidosViewProps> = ({
               value={dateFilter}
               onChange={e => setDateFilter(e.target.value)}
               className="text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-[#E05328]"
-              title="Filtrar por data do pedido"
+              title="Filtrar por data específica"
             />
 
-            {(searchTerm || statusFilter !== 'todos' || modalidadeFilter !== 'todos' || prioridadeFilter !== 'todos' || dateFilter) && (
+            {(searchTerm || statusFilter !== 'todos' || modalidadeFilter !== 'todos' || prioridadeFilter !== 'todos' || dateFilter || periodTab !== 'todos') && (
               <button
                 onClick={() => {
                   setSearchTerm('');
@@ -1055,8 +1252,9 @@ export const PedidosView: React.FC<PedidosViewProps> = ({
                   setModalidadeFilter('todos');
                   setPrioridadeFilter('todos');
                   setDateFilter('');
+                  setPeriodTab('todos');
                 }}
-                className="text-xs font-semibold text-rose-600 hover:text-rose-700 px-2 py-1"
+                className="text-xs font-semibold text-rose-600 hover:text-rose-700 px-2 py-1 cursor-pointer"
               >
                 Limpar Filtros
               </button>
@@ -1120,8 +1318,19 @@ export const PedidosView: React.FC<PedidosViewProps> = ({
                           <span>{formatDate(pedido.dataPedido)}</span>
                         </div>
                         {pedido.dataPrevisao && (
-                          <div className="text-[11px] text-slate-400 mt-0.5">
-                            Prev: {formatDateTime(pedido.dataPrevisao)}
+                          <div className="text-[11px] text-slate-500 mt-1 flex flex-wrap items-center gap-1.5">
+                            <span className="text-slate-400">Prev: {formatDateTime(pedido.dataPrevisao)}</span>
+                            {pedido.dataPrevisao.slice(0, 10) === tomorrowStr && (
+                              <span className="px-1.5 py-0.5 text-[10px] font-extrabold bg-orange-100 text-orange-900 border border-orange-300 rounded-md inline-flex items-center gap-1">
+                                <Sparkles className="w-2.5 h-2.5 text-[#E05328]" />
+                                Amanhã
+                              </span>
+                            )}
+                            {pedido.dataPrevisao.slice(0, 10) === todayStr && (
+                              <span className="px-1.5 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-900 border border-blue-300 rounded-md">
+                                Hoje
+                              </span>
+                            )}
                           </div>
                         )}
                       </td>
@@ -2043,6 +2252,50 @@ export const PedidosView: React.FC<PedidosViewProps> = ({
                       onChange={e => setOrderDataPrevisao(e.target.value)}
                       className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg text-slate-900"
                     />
+                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                      <span className="text-[11px] text-slate-500 font-medium">Atalhos:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date();
+                          d.setHours(18, 0, 0, 0);
+                          const pad = (n: number) => String(n).padStart(2, '0');
+                          const str = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T18:00`;
+                          setOrderDataPrevisao(str);
+                        }}
+                        className="px-2 py-0.5 text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-md transition-colors cursor-pointer"
+                      >
+                        Hoje (18h)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date();
+                          d.setDate(d.getDate() + 1);
+                          d.setHours(10, 0, 0, 0);
+                          const pad = (n: number) => String(n).padStart(2, '0');
+                          const str = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T10:00`;
+                          setOrderDataPrevisao(str);
+                        }}
+                        className="px-2 py-0.5 text-[11px] bg-orange-100 hover:bg-orange-200 text-orange-900 font-bold rounded-md border border-orange-300 transition-colors cursor-pointer flex items-center gap-1"
+                      >
+                        <Sparkles className="w-2.5 h-2.5 text-[#E05328]" /> Amanhã (10h)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date();
+                          d.setDate(d.getDate() + 2);
+                          d.setHours(10, 0, 0, 0);
+                          const pad = (n: number) => String(n).padStart(2, '0');
+                          const str = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T10:00`;
+                          setOrderDataPrevisao(str);
+                        }}
+                        className="px-2 py-0.5 text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-md transition-colors cursor-pointer"
+                      >
+                        +2 Dias
+                      </button>
+                    </div>
                   </div>
                 </div>
 

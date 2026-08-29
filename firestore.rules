@@ -14,6 +14,37 @@ service cloud.firestore {
       allow delete: if request.auth != null;
     }
 
+    // Cadastro e Gestão de Entidades
+    match /motoboys/{motoboyId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /clientes/{clienteId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /veiculos/{veiculoId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /adesivos/{adesivoId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /documentos/{documentoId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /pagamentos/{pagamentoId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
     // Role-based security for Users and Audit Logs
     match /usuarios/{userId} {
       allow read: if true;

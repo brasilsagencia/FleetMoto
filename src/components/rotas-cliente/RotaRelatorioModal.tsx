@@ -22,7 +22,7 @@ import {
 import { RotaCliente, PontoEntregaRota, RegiaoRota } from '../../types';
 import { REGIOES_CONFIG } from '../../utils/geoRegions';
 import { printElementById } from '../../utils/printHelper';
-import { exportElementToPdf } from '../../utils/pdfGenerator';
+import { downloadRotasReportPdf } from '../../utils/pdfGenerator';
 
 interface RotaRelatorioModalProps {
   rotas: RotaCliente[];
@@ -105,12 +105,19 @@ export const RotaRelatorioModal: React.FC<RotaRelatorioModalProps> = ({
     });
   };
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = () => {
     setIsGeneratingPdf(true);
     try {
-      await exportElementToPdf('area-impressao-relatorio-rotas', {
+      downloadRotasReportPdf({
+        paradas: paradasFiltradas,
+        rotas: rotasFiltradasUnicas,
+        totalParadas,
+        entregues: totalEntregues,
+        pendentes: totalPendentes,
+        insucesso: totalInsucessos,
+        kmTotal,
+        custoTotal,
         fileName: `Relatorio_Rotas_FleetMoto_${new Date().toISOString().slice(0, 10)}.pdf`,
-        orientation: 'landscape',
       });
     } catch (err) {
       console.error('[RotaRelatorioModal] Erro ao baixar PDF:', err);

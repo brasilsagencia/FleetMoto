@@ -20,14 +20,22 @@ export const MODELOS_RELATORIOS: ModeloRelatorioConfig[] = [
   {
     id: 'pedidos_periodo',
     numero: 3,
-    titulo: 'Pedidos por Período / Cronograma',
-    descricao: 'Evolução cronológica de entradas de pedidos por data, semana ou mês',
+    titulo: 'Pedidos por Período / Entrada',
+    descricao: 'Evolução cronológica de entradas de pedidos por data de cadastro e registro',
     categoria: 'pedidos',
     icone: 'Calendar',
   },
   {
-    id: 'materiais_solicitados',
+    id: 'agendamentos_cronograma',
     numero: 4,
+    titulo: 'Relatório de Agendamentos por Data e Horário',
+    descricao: 'Cronograma completo de agendamentos de clientes, comitês e entregas com data e hora programada',
+    categoria: 'pedidos',
+    icone: 'CalendarClock',
+  },
+  {
+    id: 'materiais_solicitados',
+    numero: 5,
     titulo: 'Materiais Solicitados',
     descricao: 'Volume total de santinhos, praguinhas, bandeiras e lonas solicitados',
     categoria: 'materiais',
@@ -35,7 +43,7 @@ export const MODELOS_RELATORIOS: ModeloRelatorioConfig[] = [
   },
   {
     id: 'materiais_separados',
-    numero: 5,
+    numero: 6,
     titulo: 'Materiais Separados (Picking)',
     descricao: 'Materiais conferidos e embalados pela equipe de separação no armazém',
     categoria: 'materiais',
@@ -43,7 +51,7 @@ export const MODELOS_RELATORIOS: ModeloRelatorioConfig[] = [
   },
   {
     id: 'materiais_liberados',
-    numero: 6,
+    numero: 7,
     titulo: 'Materiais Liberados pela Expedição',
     descricao: 'Lotes liberados para despacho, conferência de saída e rotas de entrega',
     categoria: 'materiais',
@@ -51,7 +59,7 @@ export const MODELOS_RELATORIOS: ModeloRelatorioConfig[] = [
   },
   {
     id: 'pedidos_pendentes_atrasados',
-    numero: 7,
+    numero: 8,
     titulo: 'Pedidos Pendentes e Atrasados',
     descricao: 'Acompanhamento de pedidos com prazo crítico, pendências ou em atraso',
     categoria: 'pedidos',
@@ -59,7 +67,7 @@ export const MODELOS_RELATORIOS: ModeloRelatorioConfig[] = [
   },
   {
     id: 'entregas_realizadas',
-    numero: 8,
+    numero: 9,
     titulo: 'Entregas Realizadas com Comprovante (POD)',
     descricao: 'Comprovações físicas, fotos de recebimento, assinaturas e geolocalização TSE',
     categoria: 'entregas',
@@ -67,7 +75,7 @@ export const MODELOS_RELATORIOS: ModeloRelatorioConfig[] = [
   },
   {
     id: 'entregas_pendentes_canceladas',
-    numero: 9,
+    numero: 10,
     titulo: 'Entregas Pendentes, Canceladas ou Devolvidas',
     descricao: 'Insucessos de entrega, ocorrências de endereço e devoluções à base',
     categoria: 'entregas',
@@ -75,7 +83,7 @@ export const MODELOS_RELATORIOS: ModeloRelatorioConfig[] = [
   },
   {
     id: 'rotas_horarios',
-    numero: 10,
+    numero: 11,
     titulo: 'Rotas e Horários de Saída e Chegada',
     descricao: 'Tempos de trânsito, trajetos por zona eleitoral e horários de despacho',
     categoria: 'entregas',
@@ -83,7 +91,7 @@ export const MODELOS_RELATORIOS: ModeloRelatorioConfig[] = [
   },
   {
     id: 'desempenho_motoboys',
-    numero: 11,
+    numero: 12,
     titulo: 'Desempenho dos Motoboys',
     descricao: 'Produtividade por entregador, taxa de sucesso, tempo médio e avaliações',
     categoria: 'entregas',
@@ -91,7 +99,7 @@ export const MODELOS_RELATORIOS: ModeloRelatorioConfig[] = [
   },
   {
     id: 'estoque_atual',
-    numero: 12,
+    numero: 13,
     titulo: 'Estoque Atual & Posição Física',
     descricao: 'Saldos disponíveis, reservados para pedidos, avariados e valorização total',
     categoria: 'estoque',
@@ -99,7 +107,7 @@ export const MODELOS_RELATORIOS: ModeloRelatorioConfig[] = [
   },
   {
     id: 'entradas_saidas_estoque',
-    numero: 13,
+    numero: 14,
     titulo: 'Entradas e Saídas do Estoque (Kardex)',
     descricao: 'Histórico completo de movimentações, notas fiscais, compras e baixas',
     categoria: 'estoque',
@@ -107,7 +115,7 @@ export const MODELOS_RELATORIOS: ModeloRelatorioConfig[] = [
   },
   {
     id: 'produtos_estoque_baixo',
-    numero: 14,
+    numero: 15,
     titulo: 'Produtos com Estoque Baixo / Crítico',
     descricao: 'Materiais que atingiram ou estão abaixo do estoque de segurança mínimo',
     categoria: 'estoque',
@@ -115,7 +123,7 @@ export const MODELOS_RELATORIOS: ModeloRelatorioConfig[] = [
   },
   {
     id: 'produtos_sem_estoque',
-    numero: 15,
+    numero: 16,
     titulo: 'Produtos Esgotados / Sem Estoque',
     descricao: 'Itens com saldo zerado e pedidos dependentes aguardando produção',
     categoria: 'estoque',
@@ -123,7 +131,7 @@ export const MODELOS_RELATORIOS: ModeloRelatorioConfig[] = [
   },
   {
     id: 'inventario_materiais',
-    numero: 16,
+    numero: 17,
     titulo: 'Inventário Físico de Materiais',
     descricao: 'Conferências periódicas, contagens de armazém e divergências de saldo',
     categoria: 'estoque',
@@ -131,7 +139,7 @@ export const MODELOS_RELATORIOS: ModeloRelatorioConfig[] = [
   },
   {
     id: 'custos_operacionais',
-    numero: 17,
+    numero: 18,
     titulo: 'Custos Operacionais de Logística',
     descricao: 'Demonstrativo de fretes, diárias, combustíveis, embalagens e insumos',
     categoria: 'financeiro',
@@ -139,7 +147,7 @@ export const MODELOS_RELATORIOS: ModeloRelatorioConfig[] = [
   },
   {
     id: 'pagamentos_remuneracoes',
-    numero: 18,
+    numero: 19,
     titulo: 'Pagamentos e Remunerações',
     descricao: 'Repasses a motoboys, recebimentos de comitês e conciliação financeira',
     categoria: 'financeiro',
@@ -147,7 +155,7 @@ export const MODELOS_RELATORIOS: ModeloRelatorioConfig[] = [
   },
   {
     id: 'usuario_equipe_setor',
-    numero: 19,
+    numero: 20,
     titulo: 'Atividades por Usuário, Equipe ou Setor',
     descricao: 'Registros operacionais de atendimento, estoque, separação e expedição',
     categoria: 'auditoria',
@@ -155,7 +163,7 @@ export const MODELOS_RELATORIOS: ModeloRelatorioConfig[] = [
   },
   {
     id: 'historico_alteracoes',
-    numero: 20,
+    numero: 21,
     titulo: 'Histórico Completo de Alterações (Auditoria)',
     descricao: 'Trilha imutável de logs de segurança, edições de pedidos e acessos',
     categoria: 'auditoria',

@@ -48,7 +48,9 @@ export interface Comite {
   materiais?: string[];
   modeloCarro?: string;
   data?: string;
+  dataAgendada?: string;
   horario?: string;
+  horarioAgendado?: string;
   interferencia?: string;
   totalEntregas: number;
   volumeTotalMateriais: number;
@@ -863,23 +865,24 @@ export type TipoModeloRelatorio =
   | 'geral_pedidos'                     // 1. Relatório geral de pedidos
   | 'pedidos_cliente'                   // 2. Pedidos por cliente
   | 'pedidos_periodo'                   // 3. Pedidos por período
-  | 'materiais_solicitados'             // 4. Materiais solicitados
-  | 'materiais_separados'               // 5. Materiais separados
-  | 'materiais_liberados'               // 6. Materiais liberados pela expedição
-  | 'pedidos_pendentes_atrasados'       // 7. Pedidos pendentes e atrasados
-  | 'entregas_realizadas'               // 8. Entregas realizadas
-  | 'entregas_pendentes_canceladas'     // 9. Entregas pendentes, canceladas ou devolvidas
-  | 'rotas_horarios'                    // 10. Rotas e horários de saída e chegada
-  | 'desempenho_motoboys'               // 11. Desempenho dos motoboys
-  | 'estoque_atual'                     // 12. Estoque atual
-  | 'entradas_saidas_estoque'           // 13. Entradas e saídas do estoque
-  | 'produtos_estoque_baixo'            // 14. Produtos com estoque baixo
-  | 'produtos_sem_estoque'              // 15. Produtos sem estoque
-  | 'inventario_materiais'              // 16. Inventário de materiais
-  | 'custos_operacionais'               // 17. Custos operacionais
-  | 'pagamentos_remuneracoes'           // 18. Pagamentos e remunerações
-  | 'usuario_equipe_setor'              // 19. Relatório por usuário, equipe ou setor
-  | 'historico_alteracoes';             // 20. Histórico completo de alterações e movimentações
+  | 'agendamentos_cronograma'           // 4. Relatório de agendamentos por data e horário
+  | 'materiais_solicitados'             // 5. Materiais solicitados
+  | 'materiais_separados'               // 6. Materiais separados
+  | 'materiais_liberados'               // 7. Materiais liberados pela expedição
+  | 'pedidos_pendentes_atrasados'       // 8. Pedidos pendentes e atrasados
+  | 'entregas_realizadas'               // 9. Entregas realizadas
+  | 'entregas_pendentes_canceladas'     // 10. Entregas pendentes, canceladas ou devolvidas
+  | 'rotas_horarios'                    // 11. Rotas e horários de saída e chegada
+  | 'desempenho_motoboys'               // 12. Desempenho dos motoboys
+  | 'estoque_atual'                     // 13. Estoque atual
+  | 'entradas_saidas_estoque'           // 14. Entradas e saídas do estoque
+  | 'produtos_estoque_baixo'            // 15. Produtos com estoque baixo
+  | 'produtos_sem_estoque'              // 16. Produtos sem estoque
+  | 'inventario_materiais'              // 17. Inventário de materiais
+  | 'custos_operacionais'               // 18. Custos operacionais
+  | 'pagamentos_remuneracoes'           // 19. Pagamentos e remunerações
+  | 'usuario_equipe_setor'              // 20. Relatório por usuário, equipe ou setor
+  | 'historico_alteracoes';             // 21. Histórico completo de alterações e movimentações
 
 export interface ModeloRelatorioConfig {
   id: TipoModeloRelatorio;
@@ -894,6 +897,8 @@ export interface FiltrosRelatorioCentral {
   tipoPeriodo: 'hoje' | 'ontem' | 'semana' | 'mes' | 'personalizado';
   dataInicio?: string;
   dataFim?: string;
+  dataAgendamento?: string;
+  filtroPorAgendamento?: boolean;
   numeroPedido?: string;
   clienteId?: string;
   materialId?: string;
@@ -913,8 +918,17 @@ export interface ItemRelatorioCentral {
   id: string;
   dataHora: string;
   dataHoraFormatada?: string;
+  dataAgendamento?: string;
+  horarioAgendamento?: string;
+  dataHoraAgendamentoFormatada?: string;
   numeroPedido?: string;
   clienteNome?: string;
+  candidato?: string;
+  partido?: string;
+  cargo?: string;
+  telefone?: string;
+  regiaoRota?: string;
+  enderecoCompleto?: string;
   materialNome?: string;
   quantidade?: number;
   unidadeMedida?: string;
@@ -928,7 +942,7 @@ export interface ItemRelatorioCentral {
   custo?: number;
   observacoes?: string;
   registroOriginal?: any;
-  tipoRegistro: 'pedido' | 'entrega' | 'estoque' | 'movimentacao' | 'financeiro' | 'usuario' | 'auditoria' | 'expedicao' | 'inventario';
+  tipoRegistro: 'pedido' | 'entrega' | 'estoque' | 'movimentacao' | 'financeiro' | 'usuario' | 'auditoria' | 'expedicao' | 'inventario' | 'comite';
 }
 
 export interface ModeloRelatorioSalvo {

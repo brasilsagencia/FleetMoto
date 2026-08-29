@@ -17,11 +17,14 @@ import {
   AlertTriangle,
   FileDown,
   Loader2,
+  CalendarClock,
+  Phone,
+  Car,
 } from 'lucide-react';
 import { ItemRelatorioCentral } from '../../types';
 import { formatCurrency, formatDate, formatNumber } from '../../utils/formatters';
 import { printElementById } from '../../utils/printHelper';
-import { exportElementToPdf } from '../../utils/pdfGenerator';
+import { downloadDossieItemPdf } from '../../utils/pdfGenerator';
 
 interface RelatorioDetalhesModalProps {
   isOpen: boolean;
@@ -48,13 +51,10 @@ export const RelatorioDetalhesModal: React.FC<RelatorioDetalhesModalProps> = ({
     });
   };
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = () => {
     setIsGeneratingPdf(true);
     try {
-      await exportElementToPdf('area-impressao-detalhes-relatorio', {
-        fileName: `Dossie_${item?.numeroPedido || item?.id || 'Registro'}_${Date.now()}.pdf`,
-        orientation: 'portrait',
-      });
+      downloadDossieItemPdf(item);
     } catch (err) {
       console.error('[RelatorioDetalhesModal] Erro ao baixar PDF:', err);
     } finally {
@@ -80,7 +80,7 @@ export const RelatorioDetalhesModal: React.FC<RelatorioDetalhesModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-white/10 text-orange-200 uppercase">
-                  {item.tipoRegistro}
+                  {item.tipoRegistro === 'comite' ? 'AGENDAMENTO' : item.tipoRegistro}
                 </span>
                 <span className="text-xs text-slate-400 font-mono">
                   ID: {item.id.slice(0, 14)}
@@ -130,12 +130,71 @@ export const RelatorioDetalhesModal: React.FC<RelatorioDetalhesModalProps> = ({
 
         {/* Content Body */}
         <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+          {/* Agendamento Highlight Block if available */}
+          {(item.dataAgendamento || item.tipoRegistro === 'comite') && (
+            <div className="bg-orange-50/80 border border-orange-200 p-4 rounded-2xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-orange-950 font-bold text-xs">
+                  <CalendarClock className="w-4 h-4 text-[#E05328]" />
+                  <span className="uppercase tracking-wider">Dados do Agendamento & Rota Programada</span>
+                </div>
+                <span className="px-2.5 py-0.5 bg-[#E05328] text-white rounded-full text-[10px] font-black uppercase">
+                  {item.statusLabel || item.status || 'AGENDADO'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs text-orange-950">
+                <div>
+                  <span className="text-orange-700 font-medium">Data Agendada: </span>
+                  <strong>{item.dataAgendamento ? formatDate(item.dataAgendamento) : (item.dataHoraFormatada || '-')}</strong>
+                </div>
+                <div>
+                  <span className="text-orange-700 font-medium">Horário Previsto: </span>
+                  <strong>{item.horarioAgendamento || original.horario || '14:00'}</strong>
+                </div>
+                <div>
+                  <span className="text-orange-700 font-medium">Região / Rota: </span>
+                  <strong>{item.regiaoRota || original.regiaoRota || original.bairro || 'Zona Norte'}</strong>
+                </div>
+                {item.candidato && (
+                  <div>
+                    <span className="text-orange-700 font-medium">Candidato: </span>
+                    <strong>{item.candidato} {item.partido ? `(${item.partido})` : ''}</strong>
+                  </div>
+                )}
+                {item.telefone && (
+                  <div className="flex items-center gap-1">
+                    <Phone className="w-3 h-3 text-orange-600" />
+                    <span className="text-orange-700 font-medium">Telefone: </span>
+                    <strong>{item.telefone}</strong>
+                  </div>
+                )}
+                {original.modeloCarro && (
+                  <div className="flex items-center gap-1">
+                    <Car className="w-3 h-3 text-orange-600" />
+                    <span className="text-orange-700 font-medium">Veículo: </span>
+                    <strong>{original.modeloCarro} {original.placaCarro ? `(${original.placaCarro})` : ''}</strong>
+                  </div>
+                )}
+                {(item.enderecoCompleto || original.endereco) && (
+                  <div className="sm:col-span-2 md:col-span-3 flex items-start gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-orange-600 shrink-0 mt-0.5" />
+                    <span className="text-orange-700 font-medium shrink-0">Endereço: </span>
+                    <strong className="text-slate-800">
+                      {item.enderecoCompleto || `${original.endereco || ''}, ${original.numeroEnd || ''} - ${original.bairro || ''}, ${original.cidade || 'Rio de Janeiro'}`}
+                    </strong>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Main Info Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 space-y-1">
               <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
                 <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                <span>Data & Horário</span>
+                <span>Data & Horário Registro</span>
               </div>
               <p className="text-sm font-bold text-slate-900">
                 {item.dataHoraFormatada || formatDate(item.dataHora)}
@@ -166,7 +225,7 @@ export const RelatorioDetalhesModal: React.FC<RelatorioDetalhesModalProps> = ({
             <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 space-y-1">
               <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
                 <Package className="w-3.5 h-3.5 text-slate-400" />
-                <span>Material Principal</span>
+                <span>Material / Descrição</span>
               </div>
               <p className="text-sm font-bold text-slate-900">
                 {item.materialNome || 'N/A'}
@@ -176,10 +235,10 @@ export const RelatorioDetalhesModal: React.FC<RelatorioDetalhesModalProps> = ({
             <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 space-y-1">
               <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
                 <Truck className="w-3.5 h-3.5 text-slate-400" />
-                <span>Motoboy / Entregador</span>
+                <span>Responsável / Rota</span>
               </div>
               <p className="text-sm font-bold text-slate-900">
-                {item.motoboyNome || 'Não atribuído'}
+                {item.motoboyNome || item.responsavelNome || item.rotaNome || 'Não atribuído'}
               </p>
             </div>
 
